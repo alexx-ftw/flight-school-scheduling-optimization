@@ -1,0 +1,8 @@
+# Ignore __pycache__ directories, even in subdirectories
+__pycache__
+
+# Ignore venv environment
+venv
+
+# Ignore .mypy_cache
+.mypy_cache
