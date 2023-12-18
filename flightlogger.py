@@ -81,19 +81,14 @@ def get_aircrafts() -> list[Aircraft]:
         reverse=True,
     )
 
-    # Print the response
-    # import json
-    # print(json.dumps(response_json, indent=4, sort_keys=True))
-
-    aircrafts: list[Aircraft] = []
-    for aircraft in response_json["aircraft"]["nodes"]:
-        aircrafts.append(
-            Aircraft(
-                call_sign=aircraft["callSign"],
-                total_airborne_minutes=aircraft["totalAirborneMinutes"],
-                aircraft_class=aircraft["aircraftClass"],
-            )
+    aircrafts: list[Aircraft] = [
+        Aircraft(
+            call_sign=aircraft["callSign"],
+            total_airborne_minutes=aircraft["totalAirborneMinutes"],
+            aircraft_class=aircraft["aircraftClass"],
         )
+        for aircraft in response_json["aircraft"]["nodes"]
+    ]
     return aircrafts
 
 
@@ -101,17 +96,14 @@ def create_users(users: dict[str, Any], role: str) -> list[User]:
     """
     Create the users from the response JSON.
     """
-    users_list: list[User] = []
-
-    for user in tqdm(users["users"]["nodes"]):
-        users_list.append(
-            User(
-                call_sign=user["callSign"],
-                type=role,
-                fl_id=user["id"],
-            )
+    users_list: list[User] = [
+        User(
+            call_sign=user["callSign"],
+            type=role,
+            fl_id=user["id"],
         )
-
+        for user in tqdm(users["users"]["nodes"])
+    ]
     # Initialize the users
     for user in tqdm(users_list):
         for user_data in users["users"]["nodes"]:

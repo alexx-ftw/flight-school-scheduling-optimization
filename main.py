@@ -63,29 +63,30 @@ def main():
 
     # Print the users using tabulate library by groups. Only those who are available.
     for role_group in canavia.role_groups:
-        users_data = []
-        for user in role_group:
-            if user.is_available:
-                users_data.append(  # type: ignore
-                    {
-                        "CallSign": user.call_sign,
-                        # Airborne time since the start of the month. No decimals.
-                        "AirborneTimeMTD": f"{(user.airborne_time_mtd // 3600):.0f}h {((user.airborne_time_mtd % 3600) // 60):.0f}m",
-                        # Each program name will be printed in a new line
-                        "Programs": "\n".join(
-                            [program.name for program in user.programs]
-                        ),
-                        # Availability window/s for the day
-                        # "Availability": "\n".join(
-                        #     [
-                        #         f"{availability.starts_at} - {availability.ends_at}"
-                        #         for availability in user.availabilities
-                        #     ]
-                        # ),
-                        # Last flight time
-                        "LastFlight": user.flights[0].off_block if user.flights else "",
-                    }
-                )
+        users_data = [
+            {
+                "CallSign": user.call_sign,
+                # Airborne time since the start of the month. No decimals.
+                "AirborneTimeMTD": f"{(user.airborne_time_mtd // 3600):.0f}h {((user.airborne_time_mtd % 3600) // 60):.0f}m",
+                # Each program name will be printed in a new line
+                "Programs": "\n".join(
+                    [program.name for program in user.programs]
+                ),
+                # Availability window/s for the day
+                # "Availability": "\n".join(
+                #     [
+                #         f"{availability.starts_at} - {availability.ends_at}"
+                #         for availability in user.availabilities
+                #     ]
+                # ),
+                # Last flight time
+                "LastFlight": user.flights[0].off_block
+                if user.flights
+                else "",
+            }
+            for user in role_group
+            if user.is_available
+        ]
         print("\n\n\n\n\n")
         print(tabulate.tabulate(users_data, headers="keys", tablefmt="fancy_grid"))
 
