@@ -55,11 +55,9 @@ class User:
 
         self.airborne_time_mtd = (
             sum(
-                [
-                    (flight.on_block - flight.off_block).total_seconds()
-                    for flight in self.flights
-                    if flight.off_block.month == datetime.now().month
-                ]
+                (flight.on_block - flight.off_block).total_seconds()
+                for flight in self.flights
+                if flight.off_block.month == datetime.now().month
             )
             if self.flights
             else 0
@@ -81,7 +79,9 @@ class User:
 
         # Check if the user is available
         self.is_available = (
-            not any([availability.unavailable for availability in self.availabilities])
+            not any(
+                availability.unavailable for availability in self.availabilities
+            )
             if self.availabilities
             else False
         )
