@@ -6,3 +6,6 @@ venv
 
 # Ignore .mypy_cache
 .mypy_cache
+
+# Ignore secrets
+secrets.py

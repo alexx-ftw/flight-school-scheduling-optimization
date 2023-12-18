@@ -6,17 +6,14 @@ from astral import LocationInfo
 from astral.sun import sun
 
 import flightlogger as fl
+import my_secrets as secs
 from classes.aircraft import Aircraft
 from classes.user import User
 
-BERRIEL_COORDS = {
-    "latitude": 27.782340126048187,
-    "longitude": -15.507411291514057,
-}
 AD_LOC = LocationInfo(
     timezone="Atlantic/Canary",
-    latitude=BERRIEL_COORDS["latitude"],
-    longitude=BERRIEL_COORDS["longitude"],
+    latitude=secs.AD_COORDS["latitude"],
+    longitude=secs.AD_COORDS["longitude"],
 )
 
 

@@ -19,13 +19,13 @@ from gql.transport.exceptions import TransportError, TransportServerError
 from graphql import DocumentNode
 from tqdm import tqdm
 
+import my_secrets as secs
 from classes.aircraft import Aircraft
 from classes.user import User
 
-# Token to access the FlightLogger API
-TOKEN = "5bcf165798717accc04674c09340bdfa"
 transport = AIOHTTPTransport(
-    url="https://api.flightlogger.net/graphql", headers={"Authorization": f"{TOKEN}"}
+    url="https://api.flightlogger.net/graphql",
+    headers={"Authorization": f"{secs.TOKEN}"},
 )
 
 api_client = Client(transport=transport, fetch_schema_from_transport=True)
