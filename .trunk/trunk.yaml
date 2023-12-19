@@ -26,9 +26,8 @@ lint:
     - ruff@0.1.7
     - trufflehog@3.63.2
 actions:
-  disabled:
+  enabled:
     - trunk-announce
     - trunk-check-pre-push
     - trunk-fmt-pre-commit
-  enabled:
     - trunk-upgrade-available

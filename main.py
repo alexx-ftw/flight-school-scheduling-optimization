@@ -1,6 +1,9 @@
-# This program will solve the problem of finding the optimal scheduling for a given day considering aircrafts, instructors and students of a flight school.
-# The program will use the FlightLogger API to get the data of the aircrafts, instructors and students.
-# The program will use the Google OR-Tools to solve the problem.
+"""
+This program will solve the problem of finding the optimal scheduling for a given day considering
+aircrafts, instructors and students of a flight school.
+The program will use the FlightLogger API to get the data of the aircrafts, instructors and students.
+The program will use the Google OR-Tools to solve the problem.
+"""
 import datetime
 
 import pytz
@@ -17,12 +20,17 @@ canavia = School(date=date)
 
 
 # Startup
-def main():
+def main() -> None:
+    """Main function."""
+
     # Get the aircrafts
     canavia.aircrafts = fl.get_aircrafts()
 
+    # Convert the list of aircrafts to a list of dictionaries
+    aircrafts_data = [aircraft.__dict__ for aircraft in canavia.aircrafts]
+
     # Print the aircrafts using tabulate library
-    print(tabulate.tabulate(canavia.aircrafts, headers="keys", tablefmt="fancy_grid"))
+    print(tabulate.tabulate(aircrafts_data, headers="keys", tablefmt="fancy_grid"))
 
     # Get the users
     canavia.get_users()
@@ -49,7 +57,8 @@ def main():
                     {
                         "CallSign": user.call_sign,
                         # Airborne time since the start of the month. No decimals.
-                        "AirborneTimeMTD": f"{(user.airborne_time_mtd // 3600):.0f}h {((user.airborne_time_mtd % 3600) // 60):.0f}m",
+                        "AirborneTimeMTD": f"{(user.airborne_time_mtd // 3600):.0f}h \
+                          {((user.airborne_time_mtd % 3600) // 60):.0f}m",
                         # Each program name will be printed in a new line
                         "Programs": "\n".join(
                             [program.name for program in user.programs]
