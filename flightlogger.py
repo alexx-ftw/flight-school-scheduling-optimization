@@ -1,12 +1,6 @@
-# This FlightLogger class will be used to store the many different objects that will be used in the program.
-# It will also be used to make the HTTP requests to the FlightLogger API.
-# The FlightLogger class will have the following methods:
-# - get_aircrafts() - This method will make an HTTP request to the FlightLogger API to get the aircrafts.
-# - get_instructors() - This method will make an HTTP request to the FlightLogger API to get the instructors.
-# - get_students() - This method will make an HTTP request to the FlightLogger API to get the students.
-
-# Import the requests library to make HTTP requests
-# Import gql library to work with GraphQL
+"""
+FlightLogger API
+"""
 
 import datetime
 from time import sleep
@@ -31,24 +25,26 @@ transport = AIOHTTPTransport(
 api_client = Client(transport=transport, fetch_schema_from_transport=True)
 
 SUN: dict[str, datetime.datetime] = {}
+SCHEDULING_DATE: datetime.date = datetime.date.today()
 
 
 def send_request(
-    query: DocumentNode, params: dict[str, Any] | None = None, sleep_time: int = 1
+    query: DocumentNode, params: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """
     Send a request to the FlightLogger API.
     """
-    # Send the request to the FlightLogger API. If there is an error, wait for the time specified in the Retry-After header and try again.
+    # Send the request to the FlightLogger API.
+    # If there is an error, wait for the time specified in the Retry-After header and try again.
     try:
-        response = api_client.execute(query, variable_values=params)
+        response = api_client.execute(query, variable_values=params)  # type: ignore
         response_json = response
     except (TransportError, TransportServerError, ClientResponseError):
         sleep_time = 20
         print(f"Too many requests. Sleeping for {sleep_time} seconds...")
         sleep(sleep_time)
-        response_json = send_request(query, params, sleep_time * 2)
-    return response_json  # Update the return type annotation of send_request function to indicate it can return None
+        response_json = send_request(query, params)
+    return response_json
 
 
 def get_aircrafts() -> list[Aircraft]:
@@ -132,6 +128,12 @@ def get_users_by_role(role: str) -> list[User]:
 
     users: list[User] = []
 
+    if role == "INSTRUCTOR":
+        flights_from_date = datetime.date.today().replace(day=1)
+    else:
+        days_ago = datetime.timedelta(days=90)
+        flights_from_date = datetime.date.today() - days_ago
+
     body_header = """
 query Users(
 	$roles: [UserRoleEnum!]
@@ -163,7 +165,9 @@ query Users(
 					}
 				}
 			}
-			availabilities{
+			availabilities(
+                from: "from_date_scheduling"
+            ){
 				nodes{
 					startsAt
 					endsAt
@@ -176,15 +180,16 @@ query Users(
             ){
 				nodes{
 					offBlock
-					onBlock
-				}
+                    onBlock
+                }
 			}
-		}
+        }
 	}
 }
-                """.replace(
-        "from_date", str(datetime.date.today().replace(day=1).isoformat())
+                """.replace("from_date_scheduling", str(SCHEDULING_DATE)).replace(
+        "from_date", str(flights_from_date)
     )
+
     query_initial = body_header + body_data
 
     query_after = (
@@ -222,7 +227,8 @@ query Users(
             response_json = send_request(query=gql(query_after), params=params)
 
             print(
-                f"Previous endCursor: {previous_end_cursor}. New endCursor: {response_json['users']['pageInfo']['endCursor']}"
+                f"Previous endCursor: {previous_end_cursor}. \
+                    New endCursor: {response_json['users']['pageInfo']['endCursor']}"
             )
             previous_end_cursor = response_json["users"]["pageInfo"]["endCursor"]
 
@@ -230,9 +236,5 @@ query Users(
 
             params["after"] = response_json["users"]["pageInfo"]["endCursor"]
             print(f"Role {role} size so far: {len(users)}")
-
-    # Remove users with CallSign:
-    unwanted_callsigns = ["SENASA", "AUSTRO", "Instructor"]
-    users = [user for user in users if user.call_sign not in unwanted_callsigns]
 
     return users

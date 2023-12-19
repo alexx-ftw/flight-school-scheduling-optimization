@@ -1,6 +1,6 @@
-# This class will be used to store the User objects.
-
-
+"""
+This module will be used to store the User objects.
+"""
 from datetime import datetime
 from typing import Any
 
@@ -9,7 +9,11 @@ from classes.flight import Flight
 from classes.program import Program
 
 
-class User:
+class User(object):
+    """
+    This class will be used to store the User objects.
+    """
+
     def __init__(
         self,
         call_sign: str,
@@ -18,6 +22,12 @@ class User:
     ) -> None:
         self.call_sign = call_sign
         self.type: str = type
+        if self.type == "INSTRUCTOR":
+            self.is_instructor = True
+            self.is_student = False
+        elif self.type == "STUDENT":
+            self.is_student = True
+            self.is_instructor = False
         self.id = fl_id
         self.programs: list[Program] = []
         self.flights: list[Flight] = []
@@ -61,7 +71,7 @@ class User:
                     if flight.off_block.month == datetime.now().month
                 ]
             )
-            if self.flights
+            if self.flights and self.is_instructor
             else 0
         )
 

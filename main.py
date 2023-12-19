@@ -5,6 +5,7 @@ The program will use the FlightLogger API to get the data of the aircrafts, inst
 The program will use the Google OR-Tools to solve the problem.
 """
 import datetime
+from typing import Union
 
 import pytz
 import tabulate
@@ -13,10 +14,12 @@ import flightlogger as fl
 from classes.school import School
 
 # Scheduling for date
-date = datetime.date(2023, 12, 19)
+scheduling_date = datetime.date(2023, 12, 21)
+
+TODAY = datetime.date.today()
 
 # Create the school object
-canavia = School(date=date)
+canavia = School(scheduling_date=scheduling_date)
 
 
 # Startup
@@ -50,30 +53,32 @@ def main() -> None:
 
     # Print the users using tabulate library by groups. Only those who are available.
     for role_group in canavia.role_groups:
-        users_data = []
+        users_data: list[dict[str, Union[str, int]]] = []
         for user in role_group:
             if user.is_available:
-                users_data.append(  # type: ignore
-                    {
-                        "CallSign": user.call_sign,
-                        # Airborne time since the start of the month. No decimals.
-                        "AirborneTimeMTD": f"{(user.airborne_time_mtd // 3600):.0f}h \
-                          {((user.airborne_time_mtd % 3600) // 60):.0f}m",
-                        # Each program name will be printed in a new line
-                        "Programs": "\n".join(
-                            [program.name for program in user.programs]
-                        ),
-                        # Availability window/s for the day
-                        # "Availability": "\n".join(
-                        #     [
-                        #         f"{availability.starts_at} - {availability.ends_at}"
-                        #         for availability in user.availabilities
-                        #     ]
-                        # ),
-                        # Last flight time
-                        "LastFlight": user.flights[0].off_block if user.flights else "",
-                    }
+                print_dict = {
+                    "CallSign": user.call_sign,
+                }
+                if user.is_instructor:
+                    # Airborne time since the start of the month. No decimals.
+                    print_dict[
+                        "AirborneTimeMTD"
+                    ] = f"{(user.airborne_time_mtd // 3600):.0f}h {((user.airborne_time_mtd % 3600) // 60):.0f}m"
+
+                # Each program name will be printed in a new line
+                print_dict["Programs"] = "\n".join(
+                    [program.name for program in user.programs]
                 )
+                # TODO (eros): Get the last flight time from the latest booking instead of the last flight.
+                # Last flight time in days from today. No hours or minutes.
+                if user.is_student:
+                    print_dict["LastFlight"] = (
+                        str((TODAY - user.flights[0].off_block.date()).days)
+                        if user.flights
+                        else ""
+                    )
+
+                users_data.append(print_dict)  # type: ignore
         print("\n\n\n\n\n")
         print(tabulate.tabulate(users_data, headers="keys", tablefmt="fancy_grid"))
 

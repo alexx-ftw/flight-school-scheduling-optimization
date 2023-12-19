@@ -18,9 +18,9 @@ AD_LOC = LocationInfo(
 
 
 class School:
-    def __init__(self, date: datetime.date) -> None:
-        self.date = date
-        SUN = sun(AD_LOC.observer, date=self.date, tzinfo=AD_LOC.timezone)
+    def __init__(self, scheduling_date: datetime.date) -> None:
+        fl.SCHEDULING_DATE = scheduling_date
+        SUN = sun(AD_LOC.observer, date=fl.SCHEDULING_DATE, tzinfo=AD_LOC.timezone)
         fl.SUN = {
             "sunrise": SUN["sunrise"],
             "sunset": SUN["sunset"],
@@ -44,3 +44,10 @@ class School:
         self.instructors = fl.get_users_by_role("INSTRUCTOR")
         self.students = fl.get_users_by_role("STUDENT")
         self.update()
+
+        # Remove users with CallSign:
+        unwanted_callsigns = ["SENASA", "AUSTRO", "Instructor"]
+        for group in self.role_groups:
+            group[:] = [
+                user for user in group if user.call_sign not in unwanted_callsigns
+            ]
