@@ -6,3 +6,5 @@ gql
 aiohttp
 tqdm
 astral
+keyboard
+types-keyboard
