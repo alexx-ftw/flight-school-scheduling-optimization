@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from classes.availability_slot import AvailabilitySlot
+from classes.booking import Booking
 from classes.flight import Flight
 from classes.program import Program
 
@@ -33,6 +34,7 @@ class User(object):
         self.flights: list[Flight] = []
         self.total_airborne_minutes: float = 0
         self.availabilities: list[AvailabilitySlot] = []
+        self.bookings: list[Booking]
         self.is_available: bool
         self.data: dict[str, Any]
         self.airborne_time_mtd: float = 0
