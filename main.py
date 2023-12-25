@@ -4,6 +4,7 @@ aircrafts, instructors and students of a flight school.
 The program will use the FlightLogger API to get the data of the aircrafts, instructors and students.
 The program will use the Google OR-Tools to solve the problem.
 """
+import asyncio
 import calendar
 import datetime
 from time import sleep
@@ -95,7 +96,7 @@ def print_user_groups(school: School) -> None:
 
 
 # Startup
-def main() -> None:
+async def main() -> None:
     """Main function."""
 
     # Print the scheduling date
@@ -105,14 +106,14 @@ def main() -> None:
     canavia = School(scheduling_date=scheduling_date)
 
     # Get the aircrafts and print them
-    canavia.get_aircrafts()
+    await canavia.get_aircrafts()
     # Convert the list of aircrafts to a list of dictionaries
     aircrafts_data = [aircraft.__dict__ for aircraft in canavia.aircrafts]
     # Print the aircrafts using tabulate library
     print(tabulate.tabulate(aircrafts_data, headers="keys", tablefmt="fancy_grid"))
 
     # Get the users
-    canavia.get_users()
+    await canavia.get_users()
     # Remove users with CallSign:
     unwanted_callsigns = ["SENASA", "AUSTRO", "Instructor"]
     for group in canavia.role_groups:
@@ -132,7 +133,7 @@ def main() -> None:
     # canavia.students.sort(key=lambda x: x.call_sign)
 
     # Get the classes
-    canavia.get_classes()
+    await canavia.get_classes()
 
     # Leave only students with a class that includes "PUEDE VOLAR"
     canavia.students[:] = [
@@ -199,6 +200,15 @@ def print_instructions() -> None:
     )
 
 
+start = False
+
+
+def start_program() -> None:
+    """Start the program."""
+    global start
+    start = True
+
+
 if __name__ == "__main__":
     # Clear the screen
     print("\033c")
@@ -209,7 +219,7 @@ if __name__ == "__main__":
     # Enter key will start the program
     keyboard.add_hotkey("right", increase_date)
     keyboard.add_hotkey("left", decrease_date)
-    keyboard.add_hotkey("enter", main)
+    keyboard.add_hotkey("enter", start_program)
 
     # Scheduling for date
     TODAY = datetime.date.today()
@@ -218,9 +228,11 @@ if __name__ == "__main__":
 
     print_instructions()
 
-    finished = False
-    while not keyboard.is_pressed("esc") and not finished:
+    while not start:
         sleep(0.1)
+
+    # Start the program by calling the main function
+    asyncio.run(main())
 
     keyboard.unhook_all()
     print("\nExiting...")

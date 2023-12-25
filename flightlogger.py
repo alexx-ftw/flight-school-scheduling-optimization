@@ -28,7 +28,7 @@ SUN: dict[str, datetime.datetime] = {}
 SCHEDULING_DATE: datetime.date = datetime.date.today()
 
 
-def send_request(
+async def send_request(
     query: DocumentNode, params: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """
@@ -37,17 +37,17 @@ def send_request(
     # Send the request to the FlightLogger API.
     # If there is an error, wait for the time specified in the Retry-After header and try again.
     try:
-        response = api_client.execute(query, variable_values=params)  # type: ignore
+        response = await api_client.execute_async(query, variable_values=params)  # type: ignore
         response_json = response
     except (TransportError, TransportServerError, ClientResponseError):
         sleep_time = 20
         print(f"Too many requests. Sleeping for {sleep_time} seconds...")
         sleep(sleep_time)
-        response_json = send_request(query, params)
+        response_json = await send_request(query, params)
     return response_json
 
 
-def get_aircrafts() -> list[Aircraft]:
+async def get_aircrafts() -> list[Aircraft]:
     """
     Get the aircrafts.
     """
@@ -69,7 +69,7 @@ def get_aircrafts() -> list[Aircraft]:
 
     # Send the request to the FlightLogger API
     print("Getting aircrafts...")
-    response_json = send_request(query)  # type: ignore
+    response_json = await send_request(query)  # type: ignore
 
     # Sort the aircrafts by total airborne minutes
     response_json["aircraft"]["nodes"].sort(
@@ -77,19 +77,14 @@ def get_aircrafts() -> list[Aircraft]:
         reverse=True,
     )
 
-    # Print the response
-    # import json
-    # print(json.dumps(response_json, indent=4, sort_keys=True))
-
-    aircrafts: list[Aircraft] = []
-    for aircraft in response_json["aircraft"]["nodes"]:
-        aircrafts.append(
-            Aircraft(
-                call_sign=aircraft["callSign"],
-                total_airborne_minutes=aircraft["totalAirborneMinutes"],
-                aircraft_class=aircraft["aircraftClass"],
-            )
+    aircrafts: list[Aircraft] = [
+        Aircraft(
+            call_sign=aircraft["callSign"],
+            total_airborne_minutes=aircraft["totalAirborneMinutes"],
+            aircraft_class=aircraft["aircraftClass"],
         )
+        for aircraft in response_json["aircraft"]["nodes"]
+    ]
     return aircrafts
 
 
@@ -118,7 +113,7 @@ def create_users(users: dict[str, Any], role: str) -> list[User]:
     return users_list
 
 
-def get_users_by_role(role: str) -> list[User]:
+async def get_users_by_role(role: str) -> list[User]:
     """
     Get the users by role.
     """
@@ -216,7 +211,7 @@ query Users(
     # Send the request to the FlightLogger API
     page = 1
     print(f"Getting {role.lower()}s page {page}...")
-    response_json = send_request(query=gql(query_initial), params=params)
+    response_json = await send_request(query=gql(query_initial), params=params)
 
     users = create_users(response_json, role)
 
@@ -229,7 +224,7 @@ query Users(
         while response_json["users"]["pageInfo"]["hasNextPage"]:
             page += 1
             print(f"Getting {role.lower()}s page {page}...")
-            response_json = send_request(query=gql(query_after), params=params)
+            response_json = await send_request(query=gql(query_after), params=params)
 
             print(
                 f"Previous endCursor: {previous_end_cursor}. \
@@ -245,7 +240,7 @@ query Users(
     return users
 
 
-def get_classes() -> dict[str, Any]:
+async def get_classes() -> dict[str, Any]:
     """
     Get the classes.
     """
@@ -267,6 +262,6 @@ def get_classes() -> dict[str, Any]:
 }"""
     )
 
-    response_json = send_request(query)
+    response_json = await send_request(query)
 
     return response_json["classes"]["nodes"]

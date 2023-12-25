@@ -43,22 +43,22 @@ class School(object):
         """
         self.role_groups = [self.instructors, self.students]
 
-    def get_aircrafts(self) -> None:
-        self.aircrafts = fl.get_aircrafts()
+    async def get_aircrafts(self) -> None:
+        self.aircrafts = await fl.get_aircrafts()
 
-    def get_users(self) -> None:
+    async def get_users(self) -> None:
         """
         Get the users.
         """
-        self.instructors = fl.get_users_by_role("INSTRUCTOR")
-        self.students = fl.get_users_by_role("STUDENT")
+        self.instructors = await fl.get_users_by_role("INSTRUCTOR")
+        self.students = await fl.get_users_by_role("STUDENT")
         self.update()
 
-    def get_classes(self) -> None:
+    async def get_classes(self) -> None:
         """
         Get the classes.
         """
-        classes = fl.get_classes()
+        classes = await fl.get_classes()
 
         for class_ in classes:
             name = class_["name"]
