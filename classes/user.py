@@ -20,6 +20,9 @@ class User(object):
         call_sign: str,
         type: str,
         fl_id: str,
+        address: str,
+        city: str,
+        zipcode: str,
     ) -> None:
         self.call_sign = call_sign
         self.type: str = type
@@ -30,6 +33,10 @@ class User(object):
             self.is_student = True
             self.is_instructor = False
         self.id = fl_id
+        self.address = address
+        self.city = city
+        self.zipcode = zipcode
+
         self.programs: list[Program] = []
         self.flights: list[Flight] = []
         self.total_airborne_minutes: float = 0
@@ -38,6 +45,10 @@ class User(object):
         self.is_available: bool
         self.data: dict[str, Any]
         self.airborne_time_mtd: float = 0
+
+        from classes.classes import Class
+
+        self.classes: list[Class] = []
 
     def initialize(self) -> None:
         """

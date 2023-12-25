@@ -97,17 +97,17 @@ def create_users(users: dict[str, Any], role: str) -> list[User]:
     """
     Create the users from the response JSON.
     """
-    users_list: list[User] = []
-
-    for user in tqdm(users["users"]["nodes"]):
-        users_list.append(
-            User(
-                call_sign=user["callSign"],
-                type=role,
-                fl_id=user["id"],
-            )
+    users_list: list[User] = [
+        User(
+            call_sign=user["callSign"],
+            type=role,
+            fl_id=user["id"],
+            address=user["contact"]["address"],
+            city=user["contact"]["city"],
+            zipcode=user["contact"]["zipcode"],
         )
-
+        for user in tqdm(users["users"]["nodes"])
+    ]
     # Initialize the users
     for user in tqdm(users_list):
         for user_data in users["users"]["nodes"]:
@@ -154,6 +154,11 @@ query Users(
 
 				callSign
 				id
+                contact {
+                    address
+                    city
+                    zipcode
+                }
 
 			userPrograms
 			{
@@ -238,3 +243,30 @@ query Users(
             print(f"Role {role} size so far: {len(users)}")
 
     return users
+
+
+def get_classes() -> dict[str, Any]:
+    """
+    Get the classes.
+    """
+    query = gql(
+        """
+{
+  classes{
+		pageInfo{
+			hasNextPage
+			endCursor
+		}
+		nodes{
+			name
+			users{
+				callSign
+			}
+        }
+	}
+}"""
+    )
+
+    response_json = send_request(query)
+
+    return response_json["classes"]["nodes"]

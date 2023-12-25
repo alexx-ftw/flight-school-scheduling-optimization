@@ -12,21 +12,9 @@ from typing import Union
 import keyboard
 import pytz
 import tabulate
+import termcolor
 
-import flightlogger as fl
 from classes.school import School
-
-
-def get_and_print_aircrafts(school: School) -> None:
-    """Get the aircrafts and print them."""
-    # Get the aircrafts
-    school.aircrafts = fl.get_aircrafts()
-
-    # Convert the list of aircrafts to a list of dictionaries
-    aircrafts_data = [aircraft.__dict__ for aircraft in school.aircrafts]
-
-    # Print the aircrafts using tabulate library
-    print(tabulate.tabulate(aircrafts_data, headers="keys", tablefmt="fancy_grid"))
 
 
 def print_user_groups(school: School) -> None:
@@ -59,6 +47,30 @@ def print_user_groups(school: School) -> None:
                 # TODO (eros): Get the last flight time from the latest booking instead of the last flight.
                 # Last flight time in days from today. No hours or minutes.
                 if user.is_student:
+                    # If ("Tenerife" in address or city, or "38" in zipcode) and NOT has a class with "Tenerife",
+                    classes_list: list[str] = []
+                    if (
+                        "tenerife" in user.address.lower()
+                        or "tenerife" in user.city.lower()
+                        or "38" in user.zipcode
+                    ) and all(
+                        "tenerife" not in class_.name.lower() for class_ in user.classes
+                    ):
+                        # then include "DETECTED - Tenerife" in RED color in the Classes
+                        classes_list.append(
+                            termcolor.colored("DETECTED - Tenerife", "red")
+                        )
+
+                    # If "TENERIFE" in any of the classes, print it in YELLOW color
+                    classes_list.extend(
+                        [
+                            termcolor.colored(class_.name, "yellow")
+                            if "tenerife" in class_.name.lower()
+                            else class_.name
+                            for class_ in user.classes
+                        ]
+                    )
+                    print_dict["Classes"] = "\n".join(classes_list)
                     print_dict["LastFlight"] = (
                         str((TODAY - user.flights[0].off_block.date()).days)
                         if user.flights
@@ -66,33 +78,20 @@ def print_user_groups(school: School) -> None:
                     )
 
                 table_data.append(print_dict)  # type: ignore
-        # Limit string length to 25 characters
+        # Limit string length to 25 characters for the column "Programs"
         # First separate the string by \n, then limit the length of each string
         for row in table_data:
-            for key, value in row.items():
-                if isinstance(value, str) and len(value) > 25:
-                    row[key] = f"{value[:25]}..."
+            if "Programs" in row:
+                # Ensure "Programs" is a string
+                programs: str = str(row["Programs"])
+                row["Programs"] = "\n".join(
+                    [
+                        f"{program[:25]}..." if len(program) > 25 else program
+                        for program in programs.split("\n")
+                    ]
+                )
         print("\n\n\n\n\n")
         print(tabulate.tabulate(table_data, headers="keys", tablefmt="fancy_grid"))
-
-
-def get_users(school: School) -> None:
-    """Get the users and sort them."""
-    # Get the users
-    school.get_users()
-
-    # Sort instructors by total airborne minutes flow since the start of the month
-    school.instructors.sort(key=lambda x: x.airborne_time_mtd, reverse=True)
-
-    # Sort students by last flight time
-    school.students.sort(
-        key=lambda x: x.flights[0].off_block
-        if x.flights
-        else datetime.datetime(1970, 1, 1, tzinfo=pytz.UTC),
-        reverse=True,
-    )
-    # Sort students by call sign
-    # canavia.students.sort(key=lambda x: x.call_sign)
 
 
 # Startup
@@ -106,10 +105,52 @@ def main() -> None:
     canavia = School(scheduling_date=scheduling_date)
 
     # Get the aircrafts and print them
-    get_and_print_aircrafts(canavia)
+    canavia.get_aircrafts()
+    # Convert the list of aircrafts to a list of dictionaries
+    aircrafts_data = [aircraft.__dict__ for aircraft in canavia.aircrafts]
+    # Print the aircrafts using tabulate library
+    print(tabulate.tabulate(aircrafts_data, headers="keys", tablefmt="fancy_grid"))
 
     # Get the users
-    get_users(canavia)
+    canavia.get_users()
+    # Remove users with CallSign:
+    unwanted_callsigns = ["SENASA", "AUSTRO", "Instructor"]
+    for group in canavia.role_groups:
+        group[:] = [user for user in group if user.call_sign not in unwanted_callsigns]
+
+    # Sort instructors by total airborne minutes flow since the start of the month
+    canavia.instructors.sort(key=lambda x: x.airborne_time_mtd, reverse=True)
+
+    # Sort students by last flight time
+    canavia.students.sort(
+        key=lambda x: x.flights[0].off_block
+        if x.flights
+        else datetime.datetime(1970, 1, 1, tzinfo=pytz.UTC),
+        reverse=True,
+    )
+    # Sort students by call sign
+    # canavia.students.sort(key=lambda x: x.call_sign)
+
+    # Get the classes
+    canavia.get_classes()
+
+    # Leave only students with a class that includes "PUEDE VOLAR"
+    canavia.students[:] = [
+        student
+        for student in canavia.students
+        if any(
+            "PUEDE VOLAR" in class_.name for class_ in student.classes if class_.name
+        )
+    ]
+
+    # Remove any class that does not start with "z" from the students
+    for student in canavia.students:
+        student.classes[:] = [
+            class_ for class_ in student.classes if class_.name.startswith("z")
+        ]
+
+    # Update the school
+    canavia.update()
 
     # Print the users
     print_user_groups(canavia)
@@ -146,7 +187,9 @@ def decrease_date() -> None:
 
 def print_instructions() -> None:
     """Print the instructions."""
-    print("+: Increase date by 1 day\t-: Decrease date by 1 day\tEsc: Exit")
+    print(
+        "RIGHT_ARROW: Increase date by 1 day\tLEFT_ARROW: Decrease date by 1 day\tEsc: Exit"
+    )
     # Print the scheduling date and day
     print(
         SCHEDULING_DATE_LABEL,
@@ -161,11 +204,11 @@ if __name__ == "__main__":
     print("\033c")
 
     # Use the keyboard library to change the schedule the date
-    # + key will increase by 1 the day of the scheduling
-    # - key will decrease by 1 the day of the scheduling
+    # "Right arrow" key will increase by 1 the day of the scheduling
+    # "Left arrow" key will decrease by 1 the day of the scheduling
     # Enter key will start the program
-    keyboard.add_hotkey("+", increase_date)
-    keyboard.add_hotkey("-", decrease_date)
+    keyboard.add_hotkey("right", increase_date)
+    keyboard.add_hotkey("left", decrease_date)
     keyboard.add_hotkey("enter", main)
 
     # Scheduling for date
