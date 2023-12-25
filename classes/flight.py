@@ -9,7 +9,5 @@ class Flight(object):
     Class for storing flight data
     """
 
-    briefing_time: datetime.datetime
     off_block: datetime.datetime
     on_block: datetime.datetime
-    debriefing_time: datetime.datetime

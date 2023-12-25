@@ -4,6 +4,7 @@ aircrafts, instructors and students of a flight school.
 The program will use the FlightLogger API to get the data of the aircrafts, instructors and students.
 The program will use the Google OR-Tools to solve the problem.
 """
+import calendar
 import datetime
 from time import sleep
 from typing import Union
@@ -100,7 +101,6 @@ def main() -> None:
 
     # Print the scheduling date
     global scheduling_date
-    print(SCHEDULING_DATE_LABEL, scheduling_date)
 
     # Create the school object
     canavia = School(scheduling_date=scheduling_date)
@@ -114,14 +114,20 @@ def main() -> None:
     # Print the users
     print_user_groups(canavia)
 
-    print_instructions()
+    global finished
+    finished = True
 
 
 def increase_date() -> None:
     """Increase the scheduling date by 1 day."""
     global scheduling_date
     scheduling_date += datetime.timedelta(days=1)
-    print(SCHEDULING_DATE_LABEL, scheduling_date, end="\r")
+    print(
+        SCHEDULING_DATE_LABEL,
+        scheduling_date,
+        calendar.day_name[scheduling_date.weekday()],
+        end="\r",
+    )
 
 
 def decrease_date() -> None:
@@ -130,13 +136,24 @@ def decrease_date() -> None:
     # Prevent the scheduling date from being before today
     if scheduling_date > TODAY:
         scheduling_date -= datetime.timedelta(days=1)
-    print(SCHEDULING_DATE_LABEL, scheduling_date, end="\r")
+    print(
+        SCHEDULING_DATE_LABEL,
+        scheduling_date,
+        calendar.day_name[scheduling_date.weekday()],
+        end="\r",
+    )
 
 
 def print_instructions() -> None:
     """Print the instructions."""
     print("+: Increase date by 1 day\t-: Decrease date by 1 day\tEsc: Exit")
-    print(SCHEDULING_DATE_LABEL, scheduling_date, end="\r")
+    # Print the scheduling date and day
+    print(
+        SCHEDULING_DATE_LABEL,
+        scheduling_date,
+        calendar.day_name[scheduling_date.weekday()],
+        end="\r",
+    )
 
 
 if __name__ == "__main__":
@@ -158,7 +175,8 @@ if __name__ == "__main__":
 
     print_instructions()
 
-    while not keyboard.is_pressed("esc"):
+    finished = False
+    while not keyboard.is_pressed("esc") and not finished:
         sleep(0.1)
 
     keyboard.unhook_all()
