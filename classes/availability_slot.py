@@ -13,6 +13,6 @@ class AvailabilitySlot(object):
     This class will be used to store the AvailabilitySlot objects.
     """
 
-    starts_at: datetime.date
-    ends_at: datetime.date
+    starts_at: datetime.datetime
+    ends_at: datetime.datetime
     unavailable: Optional[bool] = None

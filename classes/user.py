@@ -4,6 +4,7 @@ This module will be used to store the User objects.
 from datetime import datetime
 from typing import Any
 
+import flightlogger as fl
 from classes.availability_slot import AvailabilitySlot
 from classes.booking import Booking
 from classes.flight import Flight
@@ -94,15 +95,30 @@ class User(object):
         for availability in self.data["availabilities"]["nodes"]:  # type: ignore
             self.availabilities.append(
                 AvailabilitySlot(
-                    starts_at=availability["startsAt"],  # type: ignore
-                    ends_at=availability["endsAt"],  # type: ignore
-                    unavailable=bool(availability["unavailable"]),  # type: ignore
+                    starts_at=datetime.fromisoformat(availability["startsAt"]),
+                    ends_at=datetime.fromisoformat(availability["endsAt"]),
+                    unavailable=bool(availability["unavailable"]),
                 )
             )
 
-        # Check if the user is available
+        # User is available if:
+        # - At least one availability slot is not unavailable
+        # - and that availability slot is not included inside a bigger availability slot that is unavailable
+        # - and the SCHEDULING_DATE is after or equal to the start date of the availability slot
+        # - and the SCHEDULING_DATE is before or equal to the end date of the availability slot
         self.is_available = (
-            not any(availability.unavailable for availability in self.availabilities)
+            any(
+                not availability.unavailable
+                and not any(
+                    availability_2.starts_at <= availability.starts_at
+                    and availability_2.ends_at >= availability.ends_at
+                    and availability_2.unavailable
+                    for availability_2 in self.availabilities
+                )
+                and fl.SCHEDULING_DATE >= availability.starts_at.date()
+                and fl.SCHEDULING_DATE <= availability.ends_at.date()
+                for availability in self.availabilities
+            )
             if self.availabilities
             else False
         )
