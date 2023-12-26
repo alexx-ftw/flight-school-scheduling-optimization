@@ -3,6 +3,7 @@ FlightLogger API
 """
 
 import datetime
+import json
 from time import sleep
 from typing import Any
 
@@ -34,16 +35,75 @@ async def send_request(
     """
     Send a request to the FlightLogger API.
     """
-    # Send the request to the FlightLogger API.
-    # If there is an error, wait for the time specified in the Retry-After header and try again.
+
     try:
-        response = await api_client.execute_async(query, variable_values=params)  # type: ignore
-        response_json = response
+        # Send the request to the FlightLogger API
+        response_json = await api_client.execute_async(query, variable_values=params)  # type: ignore
+
+        # TODO(eros) Use the cursors list to get the next page.
+        # # Check if the query has an "after" parameter in the params dict.
+        # # If it does, query the next page accoring to the next cursor in the cursors list.
+        # # Merge the responses into one.
+        # if params and "after" in params:
+        #     # Get the query object
+        #     query_object = list(response_json.keys())[0]
+
+        #     # Get the cursors list
+        #     with open("cursors.json", "r") as cursors_file:
+        #         cursors = json.load(cursors_file)
+        #         cursors = dict(cursors)
+        #         cursors_list: list[str] = cursors[query_object]["cursors"]
+
+        #     # Get the next cursor
+        #     next_cursor = cursors_list[cursors_list.index(params["after"]) + 1]
+
+        #     # Query the next page
+        #     params["after"] = next_cursor
+        #     print(f"Getting page with cursor {next_cursor}...")
+        #     response_json_next_page = await send_request(query, params)
+
+        #     # Merge the responses
+        #     response_json[query_object]["nodes"] += response_json_next_page[
+        #         query_object
+        #     ]["nodes"]
+
     except (TransportError, TransportServerError, ClientResponseError):
-        sleep_time = 20
-        print(f"Too many requests. Sleeping for {sleep_time} seconds...")
-        sleep(sleep_time)
+        print("Error sending the request. Retrying in 5 seconds...")
+        sleep(5)
         response_json = await send_request(query, params)
+
+    # Take the first parameter of the response as the query object.
+    query_object = list(response_json.keys())[0]
+
+    # Check if the response has a "pageInfo" field.
+    # If it does, add the endCursor to the cursors list.
+    if "pageInfo" in response_json[query_object]:
+        with open("cursors.json", "r") as cursors_file:
+            # print(cursors_file)
+            cursors = json.load(cursors_file)
+            # json to dict
+            cursors = dict(cursors)
+            try:
+                cursors_list: list[str] = cursors[query_object]["cursors"]
+            except KeyError:
+                cursors[query_object] = {"cursors": []}
+                cursors_list = cursors[query_object]["cursors"]
+            # Pretty print the cursors list
+            # print(json.dumps(cursors_list, indent=4))
+
+            # If the endCursor is not in the cursors list, add it.
+            if response_json[query_object]["pageInfo"]["endCursor"] not in cursors_list:
+                cursors_list.append(
+                    response_json[query_object]["pageInfo"]["endCursor"]
+                )
+                print(
+                    f"Added cursor {response_json[query_object]['pageInfo']['endCursor']} to the cursors list."
+                )
+
+                # Save the cursors list to the cursors.json file.
+                with open("cursors.json", "w") as cursors_file:
+                    json.dump(cursors, cursors_file, indent=4)
+
     return response_json
 
 
@@ -55,16 +115,20 @@ async def get_aircrafts() -> list[Aircraft]:
     # Query to get the aircrafts data
     query = gql(
         """
-            {
-                aircraft{
-                    nodes {
-                        callSign
-                        totalAirborneMinutes
-                        aircraftClass
-                    }
+        {
+            aircraft{
+                pageInfo{
+                    endCursor
+                    hasNextPage
+                }
+                nodes {
+                    callSign
+                    totalAirborneMinutes
+                    aircraftClass
                 }
             }
-            """
+        }
+        """
     )
 
     # Send the request to the FlightLogger API
