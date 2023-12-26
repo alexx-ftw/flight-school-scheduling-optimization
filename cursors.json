@@ -18,5 +18,10 @@
         "cursors": [
             "MzY"
         ]
+    },
+    "aircraft": {
+        "cursors": [
+            "MTY"
+        ]
     }
 }
