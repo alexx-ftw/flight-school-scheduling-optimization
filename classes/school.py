@@ -75,3 +75,24 @@ class School(object):
         for class_ in self.classes:
             for user in class_.users:
                 user.classes.append(class_)
+
+    async def get_bookings(self) -> None:
+        """
+        Get the bookings.
+        """
+        bookings = await fl.get_bookings()
+
+        # Add the bookings to the users data property
+        for booking in bookings:
+            for role_group in self.role_groups:
+                for user in role_group:
+                    if user.call_sign in [
+                        booking["instructor"]["callSign"],
+                        booking["student"]["callSign"],
+                    ]:
+                        # print(json.dumps(user.data, indent=4))
+                        try:
+                            user.data["bookings"]["nodes"].append(booking)
+                        except KeyError:
+                            user.data["bookings"] = {"nodes": [booking]}
+                        break

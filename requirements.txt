@@ -5,6 +5,7 @@ types-tabulate
 gql
 aiohttp
 tqdm
+types-tqdm
 astral
 keyboard
 types-keyboard

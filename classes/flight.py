@@ -11,3 +11,4 @@ class Flight(object):
 
     off_block: datetime.datetime
     on_block: datetime.datetime
+    airborne_time: float

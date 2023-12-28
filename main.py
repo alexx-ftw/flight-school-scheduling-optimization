@@ -11,7 +11,6 @@ from time import sleep
 from typing import Union
 
 import keyboard
-import pytz
 import tabulate
 import termcolor
 
@@ -35,17 +34,21 @@ def print_user_groups(school: School) -> None:
                 print_dict = {
                     "CallSign": user.call_sign,
                 }
+                # ! INSTRUCTORS SPECIFIC
                 if user.is_instructor:
                     # Airborne time since the start of the month. No decimals.
                     print_dict[
                         "AirborneTimeMTD"
                     ] = f"{(user.airborne_time_mtd // 3600):.0f}h {((user.airborne_time_mtd % 3600) // 60):.0f}m"
+                    # Airborne time on the scheduling date. No decimals.
+                    print_dict["AirborneTimeSchedulingDate"] = f"{(user.airborne_time_scheduling_date // 3600):.0f}h \
+                        {((user.airborne_time_scheduling_date % 3600) // 60):.0f}m"
 
                 # Each program name will be printed in a new line
                 print_dict["Programs"] = "\n".join(
                     [program.name for program in user.programs]
                 )
-                # TODO (eros): Get the last flight time from the latest booking instead of the last flight.
+                # ! STUDENTS SPECIFIC
                 # Last flight time in days from today. No hours or minutes.
                 if user.is_student:
                     # If ("Tenerife" in address or city, or "38" in zipcode) and NOT has a class with "Tenerife",
@@ -72,11 +75,7 @@ def print_user_groups(school: School) -> None:
                         ]
                     )
                     print_dict["Classes"] = "\n".join(classes_list)
-                    print_dict["LastFlight"] = (
-                        str((TODAY - user.flights[0].off_block.date()).days)
-                        if user.flights
-                        else ""
-                    )
+                    print_dict["DaysSinceLastFlight"] = str(user.days_since_last_flight)
 
                 table_data.append(print_dict)  # type: ignore
         # Limit string length to 25 characters for the column "Programs"
@@ -99,7 +98,6 @@ def print_user_groups(school: School) -> None:
 async def main() -> None:
     """Main function."""
 
-    # Print the scheduling date
     global scheduling_date
 
     # Create the school object
@@ -119,21 +117,15 @@ async def main() -> None:
     for group in canavia.role_groups:
         group[:] = [user for user in group if user.call_sign not in unwanted_callsigns]
 
-    # Sort instructors by total airborne minutes flow since the start of the month
-    canavia.instructors.sort(key=lambda x: x.airborne_time_mtd, reverse=True)
-
-    # Sort students by last flight time
-    canavia.students.sort(
-        key=lambda x: x.flights[0].off_block
-        if x.flights
-        else datetime.datetime(1970, 1, 1, tzinfo=pytz.UTC),
-        reverse=True,
-    )
-    # Sort students by call sign
-    # canavia.students.sort(key=lambda x: x.call_sign)
-
     # Get the classes
     await canavia.get_classes()
+
+    # Get the bookings
+    await canavia.get_bookings()
+
+    # Initialize the users
+    for user in canavia.instructors + canavia.students:
+        user.initialize()
 
     # Leave only students with a class that includes "PUEDE VOLAR"
     canavia.students[:] = [
@@ -143,6 +135,12 @@ async def main() -> None:
             "PUEDE VOLAR" in class_.name for class_ in student.classes if class_.name
         )
     ]
+
+    # Sort instructors by airborne time
+    canavia.instructors.sort(key=lambda x: x.airborne_time_mtd)
+
+    # Sort students by days since last flight
+    canavia.students.sort(key=lambda x: x.days_since_last_flight, reverse=True)
 
     # Remove any class that does not start with "z" from the students
     for student in canavia.students:

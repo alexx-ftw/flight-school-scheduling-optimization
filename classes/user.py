@@ -6,7 +6,6 @@ from typing import Any
 
 import flightlogger as fl
 from classes.availability_slot import AvailabilitySlot
-from classes.booking import Booking
 from classes.flight import Flight
 from classes.program import Program
 
@@ -42,7 +41,9 @@ class User(object):
         self.flights: list[Flight] = []
         self.total_airborne_minutes: float = 0
         self.availabilities: list[AvailabilitySlot] = []
-        self.bookings: list[Booking]
+        from classes.booking import Booking
+
+        self.bookings: list[Booking] = []
         self.is_available: bool
         self.data: dict[str, Any]
         self.airborne_time_mtd: float = 0
@@ -51,6 +52,8 @@ class User(object):
 
         self.classes: list[Class] = []
 
+        self.days_since_last_flight: int = 0
+
     def initialize(self) -> None:
         """
         Initialize the user.
@@ -58,6 +61,46 @@ class User(object):
         self.set_flights()
         self.set_availabilities()
         self.set_programs()
+        self.set_bookings()
+
+        # Calculate days since last flight or booking from day of scheduling
+        # If the user has any bookings, use the last booking
+        # If the user has no bookings, use the last flight.
+        if self.bookings:
+            self.days_since_last_flight = (
+                fl.SCHEDULING_DATE - self.bookings[0].starts_at.date()
+            ).days
+        elif self.flights:
+            self.days_since_last_flight = (
+                fl.SCHEDULING_DATE - self.flights[0].off_block.date()
+            ).days
+
+        # Sum the airborne minutes of all flights that are after
+        # the start of the month of the scheduling date to the scheduling date
+        # and all the airborne minutes of the bookings that are after the start
+        # of the month of the scheduling date to the scheduling date
+        self.airborne_time_mtd = sum(
+            flight.airborne_time
+            for flight in self.flights
+            if flight.off_block.date() >= fl.SCHEDULING_DATE.replace(day=1)
+            and flight.off_block.date() <= fl.SCHEDULING_DATE
+        ) + sum(
+            booking.flight_data.airborne_time
+            for booking in self.bookings
+            if booking.starts_at.date() >= fl.SCHEDULING_DATE.replace(day=1)
+            and booking.starts_at.date() <= fl.SCHEDULING_DATE
+        )
+
+        # Calculate airborne time on the scheduling date
+        self.airborne_time_scheduling_date = sum(
+            flight.airborne_time
+            for flight in self.flights
+            if flight.off_block.date() == fl.SCHEDULING_DATE
+        ) + sum(
+            booking.flight_data.airborne_time
+            for booking in self.bookings
+            if booking.starts_at.date() == fl.SCHEDULING_DATE
+        )
 
     def set_flights(self) -> None:
         """
@@ -70,22 +113,17 @@ class User(object):
                 Flight(
                     off_block=datetime.fromisoformat(flight["offBlock"]),  # type: ignore
                     on_block=datetime.fromisoformat(flight["onBlock"]),  # type: ignore
+                    airborne_time=(
+                        datetime.fromisoformat(flight["onBlock"])
+                        - datetime.fromisoformat(flight["offBlock"])
+                    ).total_seconds()
+                    / 60,
                 )
             )
 
         # Sort the flights by off block time from latest to earliest
         # Format of the off block time is "YYYY-MM-DDTHH:MM:SSZ"
         self.flights.sort(key=lambda x: x.off_block, reverse=True)
-
-        self.airborne_time_mtd = (
-            sum(
-                (flight.on_block - flight.off_block).total_seconds()
-                for flight in self.flights
-                if flight.off_block.month == datetime.now().month
-            )
-            if self.flights and self.is_instructor
-            else 0
-        )
 
     def set_availabilities(self) -> None:
         """
@@ -130,3 +168,33 @@ class User(object):
         # Convert the programs to Program objects
         for program in self.data["userPrograms"]["nodes"]:  # type: ignore
             self.programs.append(Program(name=program["program"]["name"]))
+
+    def set_bookings(self) -> None:
+        """
+        Get the bookings that the user has made.
+        """
+        # Convert the bookings to Booking objects
+        for booking in (
+            self.data["bookings"]["nodes"] if self.data.get("bookings") else []
+        ):
+            from classes.booking import Booking
+
+            self.bookings.append(
+                Booking(
+                    starts_at=datetime.fromisoformat(booking["startsAt"]),
+                    ends_at=datetime.fromisoformat(booking["endsAt"]),
+                    comment=booking["comment"],
+                    id=booking["id"],
+                    status=booking["status"],
+                    instructor=booking["instructor"]["callSign"],
+                    student=booking["student"]["callSign"],
+                    flight_data=Flight(
+                        off_block=datetime.fromisoformat(booking["flightStartsAt"]),
+                        on_block=datetime.fromisoformat(booking["flightEndsAt"]),
+                        airborne_time=(
+                            datetime.fromisoformat(booking["flightEndsAt"])
+                            - datetime.fromisoformat(booking["flightStartsAt"])
+                        ).total_seconds(),
+                    ),
+                )
+            )

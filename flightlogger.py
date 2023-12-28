@@ -3,7 +3,6 @@ FlightLogger API
 """
 
 import datetime
-import json
 from time import sleep
 from typing import Any
 
@@ -11,7 +10,6 @@ from aiohttp.client_exceptions import ClientResponseError
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.exceptions import TransportError, TransportServerError
-from graphql import DocumentNode
 from tqdm import tqdm
 
 import my_secrets as secs
@@ -30,79 +28,48 @@ SCHEDULING_DATE: datetime.date = datetime.date.today()
 
 
 async def send_request(
-    query: DocumentNode, params: dict[str, Any] | None = None
+    body: str,
+    head: str = "",
+    params: dict[str, Any] | None = None,
+    page: int = 0,
 ) -> dict[str, Any]:
     """
     Send a request to the FlightLogger API.
     """
-
+    query = head + body
     try:
         # Send the request to the FlightLogger API
-        response_json = await api_client.execute_async(query, variable_values=params)  # type: ignore
-
-        # TODO(eros) Use the cursors list to get the next page.
-        # # Check if the query has an "after" parameter in the params dict.
-        # # If it does, query the next page accoring to the next cursor in the cursors list.
-        # # Merge the responses into one.
-        # if params and "after" in params:
-        #     # Get the query object
-        #     query_object = list(response_json.keys())[0]
-
-        #     # Get the cursors list
-        #     with open("cursors.json", "r") as cursors_file:
-        #         cursors = json.load(cursors_file)
-        #         cursors = dict(cursors)
-        #         cursors_list: list[str] = cursors[query_object]["cursors"]
-
-        #     # Get the next cursor
-        #     next_cursor = cursors_list[cursors_list.index(params["after"]) + 1]
-
-        #     # Query the next page
-        #     params["after"] = next_cursor
-        #     print(f"Getting page with cursor {next_cursor}...")
-        #     response_json_next_page = await send_request(query, params)
-
-        #     # Merge the responses
-        #     response_json[query_object]["nodes"] += response_json_next_page[
-        #         query_object
-        #     ]["nodes"]
+        response_json = await api_client.execute_async(
+            gql(query), variable_values=params
+        )  # type: ignore
 
     except (TransportError, TransportServerError, ClientResponseError):
         print("Error sending the request. Retrying in 5 seconds...")
         sleep(5)
-        response_json = await send_request(query, params)
+        response_json = await send_request(head=head, body=body, params=params)
 
     # Take the first parameter of the response as the query object.
     query_object = list(response_json.keys())[0]
 
-    # Check if the response has a "pageInfo" field.
-    # If it does, add the endCursor to the cursors list.
-    if "pageInfo" in response_json[query_object]:
-        with open("cursors.json", "r") as cursors_file:
-            # print(cursors_file)
-            cursors = json.load(cursors_file)
-            # json to dict
-            cursors = dict(cursors)
-            try:
-                cursors_list: list[str] = cursors[query_object]["cursors"]
-            except KeyError:
-                cursors[query_object] = {"cursors": []}
-                cursors_list = cursors[query_object]["cursors"]
-            # Pretty print the cursors list
-            # print(json.dumps(cursors_list, indent=4))
-
-            # If the endCursor is not in the cursors list, add it.
-            if response_json[query_object]["pageInfo"]["endCursor"] not in cursors_list:
-                cursors_list.append(
-                    response_json[query_object]["pageInfo"]["endCursor"]
-                )
-                print(
-                    f"Added cursor {response_json[query_object]['pageInfo']['endCursor']} to the cursors list."
-                )
-
-                # Save the cursors list to the cursors.json file.
-                with open("cursors.json", "w") as cursors_file:
-                    json.dump(cursors, cursors_file, indent=4)
+    # If there are more pages, get them
+    has_next_page = (
+        bool(response_json[query_object]["pageInfo"]["hasNextPage"])
+        if params
+        else False
+    )
+    if has_next_page and params:
+        page += 1
+        end_cursor = response_json[query_object]["pageInfo"]["endCursor"]
+        params["after"] = end_cursor
+        print(f"Getting page {page} with after={end_cursor}...")
+        if "after" not in head:
+            head = head.replace("(", "($after: String,")
+        if "after" not in body:
+            body = body.replace("(", "(after: $after,", 1)
+        additional_data = await send_request(
+            head=head, body=body, params=params, page=page
+        )
+        response_json[query_object]["nodes"] += additional_data[query_object]["nodes"]
 
     return response_json
 
@@ -113,8 +80,7 @@ async def get_aircrafts() -> list[Aircraft]:
     """
 
     # Query to get the aircrafts data
-    query = gql(
-        """
+    query = """
         {
             aircraft{
                 pageInfo{
@@ -129,7 +95,6 @@ async def get_aircrafts() -> list[Aircraft]:
             }
         }
         """
-    )
 
     # Send the request to the FlightLogger API
     print("Getting aircrafts...")
@@ -168,11 +133,11 @@ def create_users(users: dict[str, Any], role: str) -> list[User]:
         for user in tqdm(users["users"]["nodes"])
     ]
     # Initialize the users
+    print(f"Initializing {role}S...")
     for user in tqdm(users_list):
         for user_data in users["users"]["nodes"]:
             if user_data["id"] == user.id:
                 user.data = user_data
-                user.initialize()
 
     return users_list
 
@@ -185,30 +150,29 @@ async def get_users_by_role(role: str) -> list[User]:
     num_users = 12
     params = {"roles": [role], "num_users": num_users}
 
-    users: list[User] = []
-
     if role == "INSTRUCTOR":
         flights_from_date = datetime.date.today().replace(day=1)
     else:
         days_ago = datetime.timedelta(days=90)
         flights_from_date = datetime.date.today() - days_ago
 
-    body_header = """
+    head = """
 query Users(
 	$roles: [UserRoleEnum!]
     $num_users: Int
-)
+)"""
+    body = """
 {
 	users(
 		first: $num_users
 		roles: $roles
 
-	)"""
-    body_data = """{
-		pageInfo{
+	){
+		pageInfo
+        {
 		endCursor
 		hasNextPage
-	}
+        }
 		nodes{
 
 				callSign
@@ -254,62 +218,18 @@ query Users(
         "from_date", str(flights_from_date)
     )
 
-    query_initial = body_header + body_data
-
-    query_after = (
-        """
-query Users(
-    $after: String
-    $roles: [UserRoleEnum!]
-    $num_users: Int
-) {
-	users(
-		first: $num_users
-		after: $after
-        roles: $roles
-	)
-"""
-        + body_data
-    )
-
     # Send the request to the FlightLogger API
-    page = 1
-    print(f"Getting {role.lower()}s page {page}...")
-    response_json = await send_request(query=gql(query_initial), params=params)
+    print(f"Getting {role.lower()}s...")
+    response_json = await send_request(head=head, body=body, params=params)
 
-    users = create_users(response_json, role)
-
-    previous_end_cursor = response_json["users"]["pageInfo"]["endCursor"]
-
-    if response_json["users"]["pageInfo"]["hasNextPage"]:
-        print(f"Role {role} has more than 13 users. Getting the rest of the users...")
-        params["after"] = response_json["users"]["pageInfo"]["endCursor"]
-
-        while response_json["users"]["pageInfo"]["hasNextPage"]:
-            page += 1
-            print(f"Getting {role.lower()}s page {page}...")
-            response_json = await send_request(query=gql(query_after), params=params)
-
-            print(
-                f"Previous endCursor: {previous_end_cursor}. \
-                    New endCursor: {response_json['users']['pageInfo']['endCursor']}"
-            )
-            previous_end_cursor = response_json["users"]["pageInfo"]["endCursor"]
-
-            users += create_users(response_json, role=role)
-
-            params["after"] = response_json["users"]["pageInfo"]["endCursor"]
-            print(f"Role {role} size so far: {len(users)}")
-
-    return users
+    return create_users(response_json, role)
 
 
 async def get_classes() -> dict[str, Any]:
     """
     Get the classes.
     """
-    query = gql(
-        """
+    query = """
 {
   classes{
 		pageInfo{
@@ -324,8 +244,49 @@ async def get_classes() -> dict[str, Any]:
         }
 	}
 }"""
-    )
 
     response_json = await send_request(query)
 
     return response_json["classes"]["nodes"]
+
+
+async def get_bookings() -> dict[str, Any]:
+    """
+    Get the bookings.
+    """
+    query_body = """
+{
+	bookings(
+		all: true
+		from: "today_date"
+		subtypes: [SINGLE_STUDENT]
+	) {
+		nodes {
+			... on SingleStudentBooking {
+				startsAt
+				endsAt
+				comment
+				id
+				status
+				instructor {
+					callSign
+				}
+				student {
+					callSign
+				}
+				flightStartsAt
+				flightEndsAt
+			}
+		}
+		pageInfo {
+			endCursor
+			hasNextPage
+		}
+	}
+}""".replace("today_date", str(datetime.date.today()))
+
+    query = query_body
+
+    response_json = await send_request(query)
+
+    return response_json["bookings"]["nodes"]
