@@ -63,6 +63,7 @@ class User(object):
         self.set_programs()
         self.set_bookings()
 
+        # ! CALCULATIONS FOR THE TABLE PRINTING
         # Calculate days since last flight or booking from day of scheduling
         # If the user has any bookings, use the last booking
         # If the user has no bookings, use the last flight.
@@ -92,15 +93,18 @@ class User(object):
         )
 
         # Calculate airborne time on the scheduling date
-        self.airborne_time_scheduling_date = sum(
-            flight.airborne_time
-            for flight in self.flights
-            if flight.off_block.date() == fl.SCHEDULING_DATE
-        ) + sum(
-            booking.flight_data.airborne_time
-            for booking in self.bookings
-            if booking.starts_at.date() == fl.SCHEDULING_DATE
-        )
+        self.airborne_time_scheduling_date = (
+            sum(
+                flight.airborne_time
+                for flight in self.flights
+                if flight.off_block.date() == fl.SCHEDULING_DATE
+            )
+            + sum(
+                booking.flight_data.airborne_time
+                for booking in self.bookings
+                if booking.starts_at.date() == fl.SCHEDULING_DATE
+            )
+        ) / 60
 
     def set_flights(self) -> None:
         """

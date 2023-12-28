@@ -41,8 +41,21 @@ def print_user_groups(school: School) -> None:
                         "AirborneTimeMTD"
                     ] = f"{(user.airborne_time_mtd // 3600):.0f}h {((user.airborne_time_mtd % 3600) // 60):.0f}m"
                     # Airborne time on the scheduling date. No decimals.
-                    print_dict["AirborneTimeSchedulingDate"] = f"{(user.airborne_time_scheduling_date // 3600):.0f}h \
-                        {((user.airborne_time_scheduling_date % 3600) // 60):.0f}m"
+                    # Color the airborne time in yellow if between (4.5 and 5.5] hours in minutes
+                    # Color the airborne time in red if more than 5.5 hours in minutes
+                    if user.airborne_time_scheduling_date <= 270:
+                        color = None
+                    elif user.airborne_time_scheduling_date <= 330:
+                        color = "yellow"
+                    else:
+                        color = "red"
+
+                    # Print the airborne time in HOURS and MINUTES
+                    print_dict["AirborneTimeSchedulingDate"] = termcolor.colored(
+                        f"{(user.airborne_time_scheduling_date // 60):.0f}h \
+                            {((user.airborne_time_scheduling_date % 60) // 60):.0f}m",
+                        color,
+                    )
 
                 # Each program name will be printed in a new line
                 print_dict["Programs"] = "\n".join(
