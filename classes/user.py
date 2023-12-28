@@ -93,7 +93,7 @@ class User(object):
         )
 
         # Calculate airborne time on the scheduling date
-        self.airborne_time_scheduling_date = (
+        self.airborne_time_on_scheduling_date = (
             sum(
                 flight.airborne_time
                 for flight in self.flights

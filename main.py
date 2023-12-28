@@ -43,17 +43,17 @@ def print_user_groups(school: School) -> None:
                     # Airborne time on the scheduling date. No decimals.
                     # Color the airborne time in yellow if between (4.5 and 5.5] hours in minutes
                     # Color the airborne time in red if more than 5.5 hours in minutes
-                    if user.airborne_time_scheduling_date <= 270:
+                    # Print the airborne time in HOURS and MINUTES
+                    if user.airborne_time_on_scheduling_date <= 4.5 * 60:
                         color = None
-                    elif user.airborne_time_scheduling_date <= 330:
+                    elif user.airborne_time_on_scheduling_date <= 5.5 * 60:
                         color = "yellow"
                     else:
                         color = "red"
 
-                    # Print the airborne time in HOURS and MINUTES
                     print_dict["AirborneTimeSchedulingDate"] = termcolor.colored(
-                        f"{(user.airborne_time_scheduling_date // 60):.0f}h \
-                            {((user.airborne_time_scheduling_date % 60) // 60):.0f}m",
+                        f"{(user.airborne_time_on_scheduling_date // 60):.0f}h"
+                        + f" {(user.airborne_time_on_scheduling_date % 60):.0f}m",
                         color,
                     )
 
