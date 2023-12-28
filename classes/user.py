@@ -52,7 +52,7 @@ class User(object):
 
         self.classes: list[Class] = []
 
-        self.days_since_last_flight: int = 0
+        self.days_since_last_flight: int = -999
 
     def initialize(self) -> None:
         """
@@ -68,13 +68,21 @@ class User(object):
         # If the user has any bookings, use the last booking
         # If the user has no bookings, use the last flight.
         if self.bookings:
+            # Get the latest booking
+            self.bookings.sort(key=lambda x: x.starts_at, reverse=True)
             self.days_since_last_flight = (
                 fl.SCHEDULING_DATE - self.bookings[0].starts_at.date()
             ).days
+            if self.call_sign == "JBAEL":
+                print(self.bookings[0].starts_at.date())
         elif self.flights:
+            # Get the latest flight
+            self.flights.sort(key=lambda x: x.off_block, reverse=True)
             self.days_since_last_flight = (
                 fl.SCHEDULING_DATE - self.flights[0].off_block.date()
             ).days
+            if self.call_sign == "JBAEL":
+                print(self.flights[0].off_block.date())
 
         # Sum the airborne minutes of all flights that are after
         # the start of the month of the scheduling date to the scheduling date
@@ -202,3 +210,5 @@ class User(object):
                     ),
                 )
             )
+
+        # Sort the bookings by start time from latest to earliest
