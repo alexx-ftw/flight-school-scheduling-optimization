@@ -4,13 +4,11 @@ aircrafts, instructors and students of a flight school.
 The program will use the FlightLogger API to get the data of the aircrafts, instructors and students.
 The program will use the Google OR-Tools to solve the problem.
 """
-import asyncio
 import calendar
 import datetime
 from time import sleep
 from typing import Union
 
-import keyboard
 import tabulate
 import termcolor
 
@@ -88,7 +86,11 @@ def print_user_groups(school: School) -> None:
                         ]
                     )
                     print_dict["Classes"] = "\n".join(classes_list)
-                    print_dict["DaysSinceLastFlight"] = str(user.days_since_last_flight)
+                    print_dict["DaysSinceLastFlight"] = (
+                        str(user.days_since_last_flight)
+                        if user.days_since_last_flight != -999
+                        else ""
+                    )
 
                 table_data.append(print_dict)  # type: ignore
         # Limit string length to 25 characters for the column "Programs"
@@ -108,9 +110,8 @@ def print_user_groups(school: School) -> None:
 
 
 # Startup
-async def main() -> None:
+async def scheduler() -> None:
     """Main function."""
-
     global scheduling_date
 
     # Create the school object
@@ -167,12 +168,39 @@ async def main() -> None:
     # Print the users
     print_user_groups(canavia)
 
-    global finished
-    finished = True
+    # Restart the program
+    global start
+    start = False
+    await main()
+
+
+def is_active_window() -> bool:
+    """Check if the console is the active window."""
+    # If the program is being debugged, return True
+    if debugging:
+        return True
+
+    # Use ctypes
+    import ctypes
+
+    # Get the handle of the active window
+    handle = ctypes.windll.user32.GetForegroundWindow()
+    # Get the title of the active window
+    window_title = ctypes.create_string_buffer(255)
+    ctypes.windll.user32.GetWindowTextA(handle, ctypes.byref(window_title), 255)
+    # Convert the title to a string
+    title = window_title.value.decode("utf-8")
+
+    # Check if the title is "Command Prompt"
+    return title in ["Command Prompt", "Windows PowerShell"]
 
 
 def increase_date() -> None:
     """Increase the scheduling date by 1 day."""
+    # Check if the console is the active window
+    if not is_active_window():
+        return None
+
     global scheduling_date
     scheduling_date += datetime.timedelta(days=1)
     print(
@@ -185,6 +213,10 @@ def increase_date() -> None:
 
 def decrease_date() -> None:
     """Decrease the scheduling date by 1 day."""
+    # Check if the console is the active window
+    if not is_active_window():
+        return None
+
     global scheduling_date
     # Prevent the scheduling date from being before today
     if scheduling_date > TODAY:
@@ -197,7 +229,10 @@ def decrease_date() -> None:
     )
 
 
-def print_instructions() -> None:
+start = False
+
+
+async def main() -> None:
     """Print the instructions."""
     print(
         "RIGHT_ARROW: Increase date by 1 day\tLEFT_ARROW: Decrease date by 1 day\tEsc: Exit"
@@ -210,40 +245,48 @@ def print_instructions() -> None:
         end="\r",
     )
 
-
-start = False
-
-
-def start_program() -> None:
-    """Start the program."""
     global start
-    start = True
+    while not start:
+        sleep(0.1)
 
+    if start and is_active_window():
+        print("Starting...")
+        # Run the main function
+        await scheduler()
+
+    return None
+
+
+debugging = False
 
 if __name__ == "__main__":
     # Clear the screen
     print("\033c")
 
-    # Use the keyboard library to change the schedule the date
-    # "Right arrow" key will increase by 1 the day of the scheduling
-    # "Left arrow" key will decrease by 1 the day of the scheduling
-    # Enter key will start the program
+    # If the "-d" argument is passed, enable debugging
+    import sys
+
+    if "-d" in sys.argv:
+        debugging = True
+
+    # Use keyboard to control the program
+    import keyboard
+
     keyboard.add_hotkey("right", increase_date)
     keyboard.add_hotkey("left", decrease_date)
-    keyboard.add_hotkey("enter", start_program)
+    end = False
+    keyboard.add_hotkey("esc", lambda: globals().update(end=True))
+    # Enter to start the program
+    keyboard.add_hotkey("enter", lambda: globals().update(start=True))
 
     # Scheduling for date
     TODAY = datetime.date.today()
     scheduling_date = TODAY
     SCHEDULING_DATE_LABEL = "SCHEDULING DATE:"
 
-    print_instructions()
+    # Run the main function
+    import asyncio
 
-    while not start:
-        sleep(0.1)
-
-    # Start the program by calling the main function
     asyncio.run(main())
 
-    keyboard.unhook_all()
     print("\nExiting...")
