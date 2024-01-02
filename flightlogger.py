@@ -1,8 +1,9 @@
 """
-FlightLogger API
+Module for storing the FlightLogger API
 """
 
 import datetime
+import json
 from time import sleep
 from typing import Any
 
@@ -26,6 +27,7 @@ SCHEDULING_DATE: datetime.date = datetime.date.today()
 
 async def send_request(
     body: str,
+    query_object: str,
     head: str = "",
     params: dict[str, Any] | None = None,
     page: int = 0,
@@ -34,6 +36,9 @@ async def send_request(
     Send a request to the FlightLogger API.
     """
     query = head + body
+
+    # ! Check if we have stored cursors for this query_object
+
     try:
         # Send the request to the FlightLogger API
         response_json = await api_client.execute_async(  # type: ignore
@@ -43,28 +48,34 @@ async def send_request(
     except (TransportError, TransportServerError, ClientResponseError):
         print("Error sending the request. Retrying in 5 seconds...")
         sleep(5)
-        response_json = await send_request(head=head, body=body, params=params)
+        response_json = await send_request(
+            head=head, body=body, params=params, query_object=query_object
+        )
 
     # Take the first parameter of the response as the query object.
-    query_object = list(response_json.keys())[0]
 
     # If there are more pages, get them
-    has_next_page = (
-        bool(response_json[query_object]["pageInfo"]["hasNextPage"])
-        if params
-        else False
-    )
-    if has_next_page and params:
+    has_next_page = bool(response_json[query_object]["pageInfo"]["hasNextPage"])
+    if has_next_page:
         page += 1
         end_cursor = response_json[query_object]["pageInfo"]["endCursor"]
-        params["after"] = end_cursor
+        if params:
+            params["after"] = end_cursor
+        else:
+            params = {"after": end_cursor}
         print(f"Getting page {page} with after={end_cursor}...")
+        # sourcery skip: merge-nested-ifs
+        if not head:
+            if "bookings" in body:
+                head = """
+query Bookings($after: String)
+"""
         if "after" not in head:
             head = head.replace("(", "($after: String,")
         if "after" not in body:
             body = body.replace("(", "(after: $after,", 1)
         additional_data = await send_request(
-            head=head, body=body, params=params, page=page
+            head=head, body=body, params=params, page=page, query_object=query_object
         )
         response_json[query_object]["nodes"] += additional_data[query_object]["nodes"]
 
@@ -75,28 +86,29 @@ async def get_aircrafts() -> dict[str, Any]:
     """
     Get the aircrafts.
     """
+    query_object = "aircraft"
 
     # Query to get the aircrafts data
     query = """
-        {
-            aircraft{
-                pageInfo{
-                    endCursor
-                    hasNextPage
-                }
-                nodes {
-                    id
-                    callSign
-                    totalAirborneMinutes
-                    aircraftClass
-                }
-            }
+{
+    aircraft{
+        pageInfo{
+            endCursor
+            hasNextPage
         }
+        nodes {
+            id
+            callSign
+            totalAirborneMinutes
+            aircraftClass
+        }
+    }
+}
         """
 
     # Send the request to the FlightLogger API
     # print(json.dumps(response_json, indent=4))
-    response_json = await send_request(query)
+    response_json = await send_request(query, query_object=query_object)
 
     return response_json["aircraft"]["nodes"]
 
@@ -115,6 +127,7 @@ async def get_users_by_role(role: str) -> dict[str, Any]:
         days_ago = datetime.timedelta(days=90)
         flights_from_date = datetime.date.today() - days_ago
 
+    query_object = "users"
     head = """
 query Users(
 	$roles: [UserRoleEnum!]
@@ -179,13 +192,16 @@ query Users(
 
     # Send the request to the FlightLogger API
     print(f"Getting {role.lower()}s...")
-    return await send_request(head=head, body=body, params=params)
+    return await send_request(
+        head=head, body=body, params=params, query_object=query_object
+    )
 
 
 async def get_classes() -> dict[str, Any]:
     """
     Get the classes.
     """
+    query_object = "classes"
     query = """
 {
   classes{
@@ -202,7 +218,7 @@ async def get_classes() -> dict[str, Any]:
 	}
 }"""
 
-    response_json = await send_request(query)
+    response_json = await send_request(query, query_object=query_object)
 
     return response_json["classes"]["nodes"]
 
@@ -211,6 +227,8 @@ async def get_bookings() -> dict[str, Any]:
     """
     Get the bookings.
     """
+
+    query_object = "bookings"
     query_body = """
 {
 	bookings(
@@ -250,8 +268,8 @@ async def get_bookings() -> dict[str, Any]:
 	}
 }""".replace("today_date", str(datetime.date.today()))
 
-    query = query_body
+    response_json = await send_request(body=query_body, query_object=query_object)
 
-    response_json = await send_request(query)
+    print(json.dumps(response_json, indent=4))
 
     return response_json["bookings"]["nodes"]

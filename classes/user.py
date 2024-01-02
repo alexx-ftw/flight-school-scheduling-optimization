@@ -59,6 +59,7 @@ class User(object):
         self.days_since_last_flight: int = -999
 
     async def initialize(self, aircrafts_list: list[Aircraft]) -> list[str]:
+        # sourcery skip: list-comprehension
         """
         Initialize the user.
         """
@@ -69,14 +70,15 @@ class User(object):
 
         warnings: list[str] = []
         # If any booking planned lesson is None, warn in RED
-        if any(booking.planned_lesson is None for booking in self.bookings):
-            warnings.append(
-                termcolor.colored(
-                    f"WARNING: {self.call_sign} has a booking with no planned lesson!",
-                    "red",
-                )
+        warnings.extend(
+            termcolor.colored(
+                f"WARNING: {self.call_sign} has a booking with no planned lesson.\n"
+                + f"Date: {booking.starts_at.isoformat()}\n",
+                "red",
             )
-
+            for booking in self.bookings
+            if booking.planned_lesson is None
+        )
         # ! CALCULATIONS FOR THE TABLE PRINTING
         # Calculate days since last flight or booking from day of scheduling
         # If the user has any bookings, use the last booking

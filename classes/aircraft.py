@@ -21,4 +21,4 @@ class Aircraft(object):
         from classes.booking import Booking
 
         self.bookings: list[Booking] = []
-        self.sch_date_booked_flight_minutes = 0
+        self.sch_date_booked_flight_minutes = 0.0

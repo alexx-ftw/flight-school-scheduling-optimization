@@ -44,8 +44,10 @@ def print_user_groups(users: list[User]) -> None:
                 # Color the airborne time in yellow if between (4.5 and 5.5] hours in minutes
                 # Color the airborne time in red if more than 5.5 hours in minutes
                 # Print the airborne time in HOURS and MINUTES
-                if user.airborne_time_on_scheduling_date <= 4.5 * 60:
+                if user.airborne_time_on_scheduling_date < 4 * 60:
                     color = None
+                elif user.airborne_time_on_scheduling_date <= 5 * 60:
+                    color = "dark_grey"
                 elif user.airborne_time_on_scheduling_date <= 5.5 * 60:
                     color = "yellow"
                 else:

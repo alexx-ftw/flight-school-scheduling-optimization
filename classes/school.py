@@ -75,10 +75,10 @@ class School(object):
         print("Creating aircrafts...")
         return [
             Aircraft(
-                fl_id=aircraft["id"],
-                call_sign=aircraft["callSign"],
-                total_airborne_minutes=aircraft["totalAirborneMinutes"],
-                aircraft_class=aircraft["aircraftClass"],
+                fl_id=aircraft["id"],  # type: ignore
+                call_sign=aircraft["callSign"],  # type: ignore
+                total_airborne_minutes=aircraft["totalAirborneMinutes"],  # type: ignore
+                aircraft_class=aircraft["aircraftClass"],  # type: ignore
             )
             for aircraft in tqdm(aircrafts)
         ]
@@ -126,6 +126,7 @@ class School(object):
         """
         Get the bookings.
         """
+        print("Getting bookings...")
         bookings = await fl.get_bookings()
         # print(json.dumps(bookings, indent=4))
 
