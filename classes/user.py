@@ -4,7 +4,10 @@ This module will be used to store the User objects.
 from datetime import datetime
 from typing import Any
 
+import termcolor
+
 import flightlogger as fl
+from classes.aircraft import Aircraft
 from classes.availability_slot import AvailabilitySlot
 from classes.flight import Flight
 from classes.program import Program
@@ -23,6 +26,7 @@ class User(object):
         address: str,
         city: str,
         zipcode: str,
+        data: dict[str, Any],
     ) -> None:
         self.call_sign = call_sign
         self.type: str = type
@@ -45,8 +49,8 @@ class User(object):
 
         self.bookings: list[Booking] = []
         self.is_available: bool
-        self.data: dict[str, Any]
-        self.airborne_time_mtd: float = 0
+        self.data: dict[str, Any] = data
+        self.airborne_time_mtd_minutes: float = 0
 
         from classes.classes import Class
 
@@ -54,14 +58,24 @@ class User(object):
 
         self.days_since_last_flight: int = -999
 
-    def initialize(self) -> None:
+    async def initialize(self, aircrafts_list: list[Aircraft]) -> list[str]:
         """
         Initialize the user.
         """
         self.set_flights()
         self.set_availabilities()
         self.set_programs()
-        self.set_bookings()
+        self.set_bookings(aircrafts_list)
+
+        warnings: list[str] = []
+        # If any booking planned lesson is None, warn in RED
+        if any(booking.planned_lesson is None for booking in self.bookings):
+            warnings.append(
+                termcolor.colored(
+                    f"WARNING: {self.call_sign} has a booking with no planned lesson!",
+                    "red",
+                )
+            )
 
         # ! CALCULATIONS FOR THE TABLE PRINTING
         # Calculate days since last flight or booking from day of scheduling
@@ -73,46 +87,49 @@ class User(object):
             self.days_since_last_flight = (
                 fl.SCHEDULING_DATE - self.bookings[0].starts_at.date()
             ).days
-            if self.call_sign == "JBAEL":
-                print(self.bookings[0].starts_at.date())
         elif self.flights:
             # Get the latest flight
             self.flights.sort(key=lambda x: x.off_block, reverse=True)
             self.days_since_last_flight = (
                 fl.SCHEDULING_DATE - self.flights[0].off_block.date()
             ).days
-            if self.call_sign == "JBAEL":
-                print(self.flights[0].off_block.date())
 
         # Sum the airborne minutes of all flights that are after
         # the start of the month of the scheduling date to the scheduling date
         # and all the airborne minutes of the bookings that are after the start
         # of the month of the scheduling date to the scheduling date
-        self.airborne_time_mtd = sum(
-            flight.airborne_time
+        self.airborne_time_mtd_minutes = sum(
+            flight.airborne_minutes
             for flight in self.flights
             if flight.off_block.date() >= fl.SCHEDULING_DATE.replace(day=1)
             and flight.off_block.date() <= fl.SCHEDULING_DATE
         ) + sum(
-            booking.flight_data.airborne_time
+            booking.flight.airborne_minutes
             for booking in self.bookings
             if booking.starts_at.date() >= fl.SCHEDULING_DATE.replace(day=1)
             and booking.starts_at.date() <= fl.SCHEDULING_DATE
+            and "solo" not in booking.comment.lower()
+            and booking.status.lower() not in {"cancelled"}
         )
 
         # Calculate airborne time on the scheduling date
-        self.airborne_time_on_scheduling_date = (
-            sum(
-                flight.airborne_time
-                for flight in self.flights
-                if flight.off_block.date() == fl.SCHEDULING_DATE
+        self.airborne_time_on_scheduling_date = sum(
+            flight.airborne_minutes
+            for flight in self.flights
+            if flight.off_block.date() == fl.SCHEDULING_DATE
+        ) + sum(
+            booking.flight.airborne_minutes
+            for booking in self.bookings
+            if booking.starts_at.date() == fl.SCHEDULING_DATE
+            and "solo" not in booking.comment.lower()
+            and booking.status.lower() not in {"cancelled"}
+            and (
+                booking.planned_lesson is not None
+                and "solo" not in booking.planned_lesson["lecture"]["name"].lower()
             )
-            + sum(
-                booking.flight_data.airborne_time
-                for booking in self.bookings
-                if booking.starts_at.date() == fl.SCHEDULING_DATE
-            )
-        ) / 60
+        )
+
+        return warnings
 
     def set_flights(self) -> None:
         """
@@ -125,7 +142,7 @@ class User(object):
                 Flight(
                     off_block=datetime.fromisoformat(flight["offBlock"]),  # type: ignore
                     on_block=datetime.fromisoformat(flight["onBlock"]),  # type: ignore
-                    airborne_time=(
+                    airborne_minutes=(
                         datetime.fromisoformat(flight["onBlock"])
                         - datetime.fromisoformat(flight["offBlock"])
                     ).total_seconds()
@@ -181,10 +198,12 @@ class User(object):
         for program in self.data["userPrograms"]["nodes"]:  # type: ignore
             self.programs.append(Program(name=program["program"]["name"]))
 
-    def set_bookings(self) -> None:
+    def set_bookings(self, aircrafts: list[Aircraft]) -> None:
         """
         Get the bookings that the user has made.
         """
+        # if self.call_sign == "TSCHU":
+        #     print(json.dumps(self.data, indent=4))
         # Convert the bookings to Booking objects
         for booking in (
             self.data["bookings"]["nodes"] if self.data.get("bookings") else []
@@ -195,20 +214,27 @@ class User(object):
                 Booking(
                     starts_at=datetime.fromisoformat(booking["startsAt"]),
                     ends_at=datetime.fromisoformat(booking["endsAt"]),
-                    comment=booking["comment"],
+                    comment=booking["comment"] or "",
                     id=booking["id"],
                     status=booking["status"],
                     instructor=booking["instructor"]["callSign"],
                     student=booking["student"]["callSign"],
-                    flight_data=Flight(
+                    flight=Flight(
                         off_block=datetime.fromisoformat(booking["flightStartsAt"]),
                         on_block=datetime.fromisoformat(booking["flightEndsAt"]),
-                        airborne_time=(
+                        airborne_minutes=(
                             datetime.fromisoformat(booking["flightEndsAt"])
                             - datetime.fromisoformat(booking["flightStartsAt"])
-                        ).total_seconds(),
+                        ).total_seconds()
+                        / 60,
+                    ),
+                    planned_lesson=booking["plannedLesson"],
+                    aircraft=next(
+                        (
+                            aircraft
+                            for aircraft in aircrafts
+                            if aircraft.call_sign == booking["aircraft"]["callSign"]
+                        ),
                     ),
                 )
             )
-
-        # Sort the bookings by start time from latest to earliest

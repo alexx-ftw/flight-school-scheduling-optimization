@@ -10,11 +10,8 @@ from aiohttp.client_exceptions import ClientResponseError
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.exceptions import TransportError, TransportServerError
-from tqdm import tqdm
 
 import my_secrets as secs
-from classes.aircraft import Aircraft
-from classes.user import User
 
 transport = AIOHTTPTransport(
     url="https://api.flightlogger.net/graphql",
@@ -39,7 +36,7 @@ async def send_request(
     query = head + body
     try:
         # Send the request to the FlightLogger API
-        response_json = await api_client.execute_async(
+        response_json = await api_client.execute_async(  # type: ignore
             gql(query), variable_values=params
         )  # type: ignore
 
@@ -74,7 +71,7 @@ async def send_request(
     return response_json
 
 
-async def get_aircrafts() -> list[Aircraft]:
+async def get_aircrafts() -> dict[str, Any]:
     """
     Get the aircrafts.
     """
@@ -88,6 +85,7 @@ async def get_aircrafts() -> list[Aircraft]:
                     hasNextPage
                 }
                 nodes {
+                    id
                     callSign
                     totalAirborneMinutes
                     aircraftClass
@@ -97,52 +95,13 @@ async def get_aircrafts() -> list[Aircraft]:
         """
 
     # Send the request to the FlightLogger API
-    print("Getting aircrafts...")
-    response_json = await send_request(query)  # type: ignore
+    # print(json.dumps(response_json, indent=4))
+    response_json = await send_request(query)
 
-    # Sort the aircrafts by total airborne minutes
-    response_json["aircraft"]["nodes"].sort(
-        key=lambda aircraft: aircraft["totalAirborneMinutes"],  # type: ignore
-        reverse=True,
-    )
-
-    aircrafts: list[Aircraft] = [
-        Aircraft(
-            call_sign=aircraft["callSign"],
-            total_airborne_minutes=aircraft["totalAirborneMinutes"],
-            aircraft_class=aircraft["aircraftClass"],
-        )
-        for aircraft in response_json["aircraft"]["nodes"]
-    ]
-    return aircrafts
+    return response_json["aircraft"]["nodes"]
 
 
-def create_users(users: dict[str, Any], role: str) -> list[User]:
-    """
-    Create the users from the response JSON.
-    """
-    users_list: list[User] = [
-        User(
-            call_sign=user["callSign"],
-            type=role,
-            fl_id=user["id"],
-            address=user["contact"]["address"],
-            city=user["contact"]["city"],
-            zipcode=user["contact"]["zipcode"],
-        )
-        for user in tqdm(users["users"]["nodes"])
-    ]
-    # Initialize the users
-    print(f"Initializing {role}S...")
-    for user in tqdm(users_list):
-        for user_data in users["users"]["nodes"]:
-            if user_data["id"] == user.id:
-                user.data = user_data
-
-    return users_list
-
-
-async def get_users_by_role(role: str) -> list[User]:
+async def get_users_by_role(role: str) -> dict[str, Any]:
     """
     Get the users by role.
     """
@@ -220,9 +179,7 @@ query Users(
 
     # Send the request to the FlightLogger API
     print(f"Getting {role.lower()}s...")
-    response_json = await send_request(head=head, body=body, params=params)
-
-    return create_users(response_json, role)
+    return await send_request(head=head, body=body, params=params)
 
 
 async def get_classes() -> dict[str, Any]:
@@ -276,6 +233,14 @@ async def get_bookings() -> dict[str, Any]:
 				}
 				flightStartsAt
 				flightEndsAt
+				plannedLesson{
+					lecture{
+						name
+					}
+				}
+				aircraft{
+					callSign
+				}
 			}
 		}
 		pageInfo {
