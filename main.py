@@ -84,11 +84,11 @@ def print_user_groups(users: list[User]) -> None:
                     for class_ in user.classes
                     if "tenerife" in class_.name.lower()
                 )
-                # If "PRIORITY - MAX" in any of the classes, print it in RED color
+                # If "TIME CONSTRAINED" in any of the classes, print it in RED color
                 classes_list.extend(
                     termcolor.colored(class_.name, "red")
                     for class_ in user.classes
-                    if "MAX" in class_.name
+                    if "TIME CONSTRAINED" in class_.name
                 )
                 # Include the rest of the classes
                 classes_list.extend(
