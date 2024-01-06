@@ -21,20 +21,31 @@ class Booking(object):
         comment: str,
         id: str,
         status: str,
-        instructor: User,
-        student: User,
-        planned_lesson: dict[str, Any] | None,
         aircraft: Aircraft,
+        typename: str,
+        planned_lesson: dict[str, Any] | None = None,
+        instructor: User | None = None,
+        renter: User | None = None,
+        pic: User | None = None,
+        student: User | None = None,
     ) -> None:
+        self.typename = typename
         self.starts_at = starts_at
         self.flight = flight
         self.ends_at = ends_at
         self.comment = comment
+        self.planned_lesson = planned_lesson
+        self.is_solo = self.comment.lower() in {"solo"} or (
+            self.planned_lesson is not None
+            and str(self.planned_lesson["lecture"]["name"]).lower() in {"solo"}
+        )
         self.id = id
         self.status = status
+        self.is_cancelled = self.status in {"cancelled"}
         self.instructor = instructor
+        self.renter = renter
+        self.pic = pic
         self.student = student
-        self.planned_lesson = planned_lesson
         self.aircraft = aircraft
 
         self.aircraft.bookings.append(self)

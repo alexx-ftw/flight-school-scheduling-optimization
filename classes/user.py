@@ -77,7 +77,7 @@ class User(object):
                 "red",
             )
             for booking in self.bookings
-            if booking.planned_lesson is None
+            if booking.planned_lesson is None and "Single" in booking.typename
         )
         # ! CALCULATIONS FOR THE TABLE PRINTING
         # Calculate days since last flight or booking from day of scheduling
@@ -110,8 +110,8 @@ class User(object):
             for booking in self.bookings
             if booking.starts_at.date() >= fl.SCHEDULING_DATE.replace(day=1)
             and booking.starts_at.date() <= fl.SCHEDULING_DATE
-            and "solo" not in booking.comment.lower()
-            and booking.status.lower() not in {"cancelled"}
+            and not booking.is_solo
+            and not booking.is_cancelled
         )
 
         # Calculate airborne time on the scheduling date
@@ -123,13 +123,23 @@ class User(object):
             booking.flight.airborne_minutes
             for booking in self.bookings
             if booking.starts_at.date() == fl.SCHEDULING_DATE
-            and "solo" not in booking.comment.lower()
-            and booking.status.lower() not in {"cancelled"}
-            and (
-                booking.planned_lesson is not None
-                and "solo" not in booking.planned_lesson["lecture"]["name"].lower()
-            )
+            and not booking.is_solo
+            and not booking.is_cancelled
         )
+
+        # If the user is an instructor, Calculate the "Tiredness" of the user
+        # Tiredness is calculated by the following formula:
+        # 1. Get the number of bookings in the scheduling date
+        # 2. Multiply that number by the flight hours of the bookings
+        if self.is_instructor:
+            self.tiredness = self.airborne_time_on_scheduling_date / 60 + sum(
+                1
+                for booking in self.bookings
+                if booking.starts_at.date() == fl.SCHEDULING_DATE
+                and not booking.is_solo
+                and not booking.is_cancelled
+                and (booking.planned_lesson is not None and not booking.is_solo)
+            )
 
         return warnings
 
@@ -204,39 +214,96 @@ class User(object):
         """
         Get the bookings that the user has made.
         """
-        # if self.call_sign == "TSCHU":
-        #     print(json.dumps(self.data, indent=4))
+
         # Convert the bookings to Booking objects
         for booking in (
             self.data["bookings"]["nodes"] if self.data.get("bookings") else []
         ):
             from classes.booking import Booking
 
-            self.bookings.append(
-                Booking(
-                    starts_at=datetime.fromisoformat(booking["startsAt"]),
-                    ends_at=datetime.fromisoformat(booking["endsAt"]),
-                    comment=booking["comment"] or "",
-                    id=booking["id"],
-                    status=booking["status"],
-                    instructor=booking["instructor"]["callSign"],
-                    student=booking["student"]["callSign"],
-                    flight=Flight(
-                        off_block=datetime.fromisoformat(booking["flightStartsAt"]),
-                        on_block=datetime.fromisoformat(booking["flightEndsAt"]),
-                        airborne_minutes=(
-                            datetime.fromisoformat(booking["flightEndsAt"])
-                            - datetime.fromisoformat(booking["flightStartsAt"])
-                        ).total_seconds()
-                        / 60,
-                    ),
-                    planned_lesson=booking["plannedLesson"],
-                    aircraft=next(
-                        (
-                            aircraft
-                            for aircraft in aircrafts
-                            if aircraft.call_sign == booking["aircraft"]["callSign"]
+            if "Single" in booking["__typename"]:
+                self.bookings.append(
+                    Booking(
+                        starts_at=datetime.fromisoformat(booking["startsAt"]),
+                        ends_at=datetime.fromisoformat(booking["endsAt"]),
+                        comment=booking["comment"] or "",
+                        id=booking["id"],
+                        status=booking["status"],
+                        instructor=booking["instructor"]["callSign"],
+                        student=booking["student"]["callSign"],
+                        flight=Flight(
+                            off_block=datetime.fromisoformat(booking["flightStartsAt"]),
+                            on_block=datetime.fromisoformat(booking["flightEndsAt"]),
+                            airborne_minutes=(
+                                datetime.fromisoformat(booking["flightEndsAt"])
+                                - datetime.fromisoformat(booking["flightStartsAt"])
+                            ).total_seconds()
+                            / 60,
                         ),
-                    ),
+                        planned_lesson=booking["plannedLesson"],
+                        aircraft=next(
+                            (
+                                aircraft
+                                for aircraft in aircrafts
+                                if aircraft.call_sign == booking["aircraft"]["callSign"]
+                            ),
+                        ),
+                        typename=booking["__typename"],
+                    )
                 )
-            )
+            elif "Rental" in booking["__typename"]:
+                self.bookings.append(
+                    Booking(
+                        starts_at=datetime.fromisoformat(booking["startsAt"]),
+                        ends_at=datetime.fromisoformat(booking["endsAt"]),
+                        comment=booking["comment"] or "",
+                        id=booking["id"],
+                        status=booking["status"],
+                        renter=booking["renter"]["callSign"],
+                        flight=Flight(
+                            off_block=datetime.fromisoformat(booking["flightStartsAt"]),
+                            on_block=datetime.fromisoformat(booking["flightEndsAt"]),
+                            airborne_minutes=(
+                                datetime.fromisoformat(booking["flightEndsAt"])
+                                - datetime.fromisoformat(booking["flightStartsAt"])
+                            ).total_seconds()
+                            / 60,
+                        ),
+                        aircraft=next(
+                            (
+                                aircraft
+                                for aircraft in aircrafts
+                                if aircraft.call_sign == booking["aircraft"]["callSign"]
+                            ),
+                        ),
+                        typename=booking["__typename"],
+                    )
+                )
+            elif "Operation" in booking["__typename"]:
+                self.bookings.append(
+                    Booking(
+                        starts_at=datetime.fromisoformat(booking["startsAt"]),
+                        ends_at=datetime.fromisoformat(booking["endsAt"]),
+                        comment=booking["comment"] or "",
+                        id=booking["id"],
+                        status=booking["status"],
+                        pic=booking["pic"]["callSign"],
+                        flight=Flight(
+                            off_block=datetime.fromisoformat(booking["flightStartsAt"]),
+                            on_block=datetime.fromisoformat(booking["flightEndsAt"]),
+                            airborne_minutes=(
+                                datetime.fromisoformat(booking["flightEndsAt"])
+                                - datetime.fromisoformat(booking["flightStartsAt"])
+                            ).total_seconds()
+                            / 60,
+                        ),
+                        aircraft=next(
+                            (
+                                aircraft
+                                for aircraft in aircrafts
+                                if aircraft.call_sign == booking["aircraft"]["callSign"]
+                            ),
+                        ),
+                        typename=booking["__typename"],
+                    )
+                )

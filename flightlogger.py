@@ -3,7 +3,6 @@ Module for storing the FlightLogger API
 """
 
 import datetime
-import json
 from time import sleep
 from typing import Any
 
@@ -234,7 +233,7 @@ async def get_bookings() -> dict[str, Any]:
 	bookings(
 		all: true
 		from: "today_date"
-		subtypes: [SINGLE_STUDENT]
+		subtypes: [RENTAL, SINGLE_STUDENT, OPERATION]
 	) {
 		nodes {
 			... on SingleStudentBooking {
@@ -259,6 +258,42 @@ async def get_bookings() -> dict[str, Any]:
 				aircraft{
 					callSign
 				}
+				__typename
+			}
+            ... on RentalBooking{
+				startsAt
+				endsAt
+				comment
+				id
+				status
+				flightStartsAt
+				flightEndsAt
+				aircraft {
+					callSign
+				}
+				renter{
+					callSign
+				}
+				__typename
+            }
+            ... on OperationBooking{
+				startsAt
+				endsAt
+				comment
+				id
+				status
+				flightStartsAt
+				flightEndsAt
+				aircraft {
+					callSign
+				}
+				pic{
+					callSign
+				}
+				crew{
+					callSign
+				}
+				__typename
 			}
 		}
 		pageInfo {
@@ -270,6 +305,6 @@ async def get_bookings() -> dict[str, Any]:
 
     response_json = await send_request(body=query_body, query_object=query_object)
 
-    print(json.dumps(response_json, indent=4))
+    # print(json.dumps(response_json, indent=4))
 
     return response_json["bookings"]["nodes"]

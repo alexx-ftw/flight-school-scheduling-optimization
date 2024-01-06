@@ -36,7 +36,7 @@ def print_user_groups(users: list[User]) -> None:
             # ! INSTRUCTORS SPECIFIC
             if user.is_instructor:
                 # Airborne time since the start of the month. No decimals.
-                print_dict["AirborneTimeMTD"] = (
+                print_dict["AirTimeMTD"] = (
                     f"{(user.airborne_time_mtd_minutes // 60):.0f}h "
                     + f"{(user.airborne_time_mtd_minutes % 60):.0f}m"
                 )
@@ -53,10 +53,14 @@ def print_user_groups(users: list[User]) -> None:
                 else:
                     color = "red"
 
-                print_dict["AirborneTimeSCHDate"] = termcolor.colored(
+                print_dict["AirTimeSCHDate"] = termcolor.colored(
                     f"{(user.airborne_time_on_scheduling_date // 60):.0f}h"
                     + f" {(user.airborne_time_on_scheduling_date % 60):.0f}m",
                     color,
+                )
+                # Print the "Tiredness" factor
+                print_dict["Tiredness"] = (
+                    f"{user.tiredness:.2f}" if user.tiredness else "N/A"
                 )
 
             # Each program name will be printed in a new line
@@ -95,7 +99,7 @@ def print_user_groups(users: list[User]) -> None:
                     class_.name
                     for class_ in user.classes
                     if "tenerife" not in class_.name.lower()
-                    and "MAX" not in class_.name
+                    and "CONSTRAINED" not in class_.name
                 )
                 print_dict["Classes"] = "\n".join(classes_list)
                 print_dict["DaysSinceLastFlight"] = (
@@ -158,7 +162,7 @@ async def scheduler() -> None:
     await canavia.initialize()
 
     # Remove users with CallSign:
-    unwanted_callsigns = ["SENASA", "AUSTRO", "Instructor"]
+    unwanted_callsigns = ["SENASA", "AUSTRO", "Instructor", "EVESC"]
     for group in canavia.role_groups:
         group[:] = [user for user in group if user.call_sign not in unwanted_callsigns]
 
@@ -174,11 +178,12 @@ async def scheduler() -> None:
     # Sort instructors by airborne time
     canavia.instructors.sort(key=lambda x: x.airborne_time_mtd_minutes)
 
-    # Sort students by days since last flight. Put students with "MAX" in
+    # Sort students by days since last flight. Put students with "TIME CONSTRAINED" in
     # any of their classes at the beginning of the list
     canavia.students.sort(key=lambda x: x.days_since_last_flight, reverse=True)
     canavia.students.sort(
-        key=lambda x: any("MAX" in class_.name for class_ in x.classes), reverse=True
+        key=lambda x: any("CONSTRAINED" in class_.name for class_ in x.classes),
+        reverse=True,
     )
 
     # Remove any class that does not start with "z" from the students

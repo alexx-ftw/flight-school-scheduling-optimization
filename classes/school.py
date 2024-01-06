@@ -134,16 +134,35 @@ class School(object):
         for booking in bookings:
             for role_group in self.role_groups:
                 for user in role_group:
-                    if user.call_sign in [
-                        booking["instructor"]["callSign"],  # type: ignore
-                        booking["student"]["callSign"],  # type: ignore
-                    ]:
-                        # print(json.dumps(user.data, indent=4))
-                        try:
-                            user.data["bookings"]["nodes"].append(booking)
-                        except KeyError:
-                            user.data["bookings"] = {"nodes": [booking]}
-                        break
+                    if "Single" in booking["__typename"]:  # type: ignore
+                        if user.call_sign in [
+                            booking["instructor"]["callSign"],  # type: ignore
+                            booking["student"]["callSign"],  # type: ignore
+                        ]:
+                            # print(json.dumps(user.data, indent=4))
+                            try:
+                                user.data["bookings"]["nodes"].append(booking)
+                            except KeyError:
+                                user.data["bookings"] = {"nodes": [booking]}
+                            break
+                    elif "Operation" in booking["__typename"]:  # type: ignore
+                        if user.call_sign in [
+                            booking["pic"]["callSign"],  # type: ignore
+                        ]:
+                            try:
+                                user.data["bookings"]["nodes"].append(booking)
+                            except KeyError:
+                                user.data["bookings"] = {"nodes": [booking]}
+                            break
+                    elif "Rental" in booking["__typename"]:  # type: ignore
+                        if user.call_sign in [
+                            booking["renter"]["callSign"],  # type: ignore
+                        ]:
+                            try:
+                                user.data["bookings"]["nodes"].append(booking)
+                            except KeyError:
+                                user.data["bookings"] = {"nodes": [booking]}
+                            break
 
     @staticmethod
     async def create_users(users: dict[str, Any], role: str) -> list[User]:
