@@ -57,8 +57,18 @@ class School(object):
         self.students = await self.get_students()
         self.role_groups = [self.instructors, self.students]
 
-        await self.get_bookings()
         await self.get_classes()
+
+        # Create a list with the users in the class that has "PUEDE VOLAR" in its name
+        self.flyers = [
+            user
+            for class_ in self.classes
+            if "PUEDE VOLAR" in class_.name
+            for user in class_.users
+        ]
+        await self.get_trainings()
+
+        await self.get_bookings()
 
         for user in self.instructors + self.students:
             warnings = await user.initialize(self.aircrafts)
@@ -183,3 +193,23 @@ class School(object):
             )
             for user in tqdm(users["users"]["nodes"])
         ]
+
+    async def get_trainings(self) -> None:
+        """
+        Get the trainings for the users that can fly.
+        """
+        print("Getting trainings...")
+        trainings = await fl.get_trainings(self.flyers)
+
+        # Add the trainings to the users data property
+        for training in trainings:
+            for user in self.flyers:
+                if (
+                    user.call_sign in training["student"]["callSign"]  # type: ignore
+                    and training["userProgram"]["status"] == "active"  # type: ignore
+                ):
+                    try:
+                        user.data["trainings"]["nodes"].append(training)
+                    except KeyError:
+                        user.data["trainings"] = {"nodes": [training]}
+                    break

@@ -1,6 +1,7 @@
 """
 This module will be used to store the User objects.
 """
+import math
 from datetime import datetime
 from typing import Any
 
@@ -56,7 +57,13 @@ class User(object):
 
         self.classes: list[Class] = []
 
-        self.days_since_last_flight: int = -999
+        self.days_since_last_flight: float = -math.inf
+
+        from classes.training import Training
+
+        self.trainings: list[Training] | None = None
+
+        self.has_booking_on_scheduling_date: bool = False
 
     async def initialize(self, aircrafts_list: list[Aircraft]) -> list[str]:
         # sourcery skip: list-comprehension
@@ -67,6 +74,7 @@ class User(object):
         self.set_availabilities()
         self.set_programs()
         self.set_bookings(aircrafts_list)
+        self.set_trainings()
 
         warnings: list[str] = []
         # If any booking planned lesson is None, warn in RED
@@ -115,16 +123,20 @@ class User(object):
         )
 
         # Calculate airborne time on the scheduling date
-        self.airborne_time_on_scheduling_date = sum(
-            flight.airborne_minutes
-            for flight in self.flights
-            if flight.off_block.date() == fl.SCHEDULING_DATE
-        ) + sum(
-            booking.flight.airborne_minutes
-            for booking in self.bookings
-            if booking.starts_at.date() == fl.SCHEDULING_DATE
-            and not booking.is_solo
-            and not booking.is_cancelled
+        self.airborne_time_on_scheduling_date = (
+            sum(
+                flight.airborne_minutes
+                for flight in self.flights
+                if flight.off_block.date() == fl.SCHEDULING_DATE
+            )
+            + sum(
+                booking.flight.airborne_minutes
+                for booking in self.bookings
+                if booking.starts_at.date() == fl.SCHEDULING_DATE
+                and not booking.is_solo
+                and not booking.is_cancelled
+            )
+            or 0
         )
 
         # If the user is an instructor, Calculate the "Tiredness" of the user
@@ -144,7 +156,13 @@ class User(object):
                 )
                 / 9
                 * 100
-            )
+            ) or 0
+
+        # If there is any booking on the scheduling date, set self.has_booking_on_scheduling_date to True
+        self.has_booking_on_scheduling_date = any(
+            booking.starts_at.date() == fl.SCHEDULING_DATE and not booking.is_cancelled
+            for booking in self.bookings
+        )
 
         return warnings
 
@@ -221,7 +239,7 @@ class User(object):
         """
 
         # Convert the bookings to Booking objects
-        for booking in (
+        for booking in (  # type: ignore
             self.data["bookings"]["nodes"] if self.data.get("bookings") else []
         ):
             from classes.booking import Booking
@@ -229,23 +247,23 @@ class User(object):
             if "Single" in booking["__typename"]:
                 self.bookings.append(
                     Booking(
-                        starts_at=datetime.fromisoformat(booking["startsAt"]),
-                        ends_at=datetime.fromisoformat(booking["endsAt"]),
-                        comment=booking["comment"] or "",
-                        id=booking["id"],
-                        status=booking["status"],
-                        instructor=booking["instructor"]["callSign"],
-                        student=booking["student"]["callSign"],
-                        flight=Flight(
-                            off_block=datetime.fromisoformat(booking["flightStartsAt"]),
-                            on_block=datetime.fromisoformat(booking["flightEndsAt"]),
-                            airborne_minutes=(
-                                datetime.fromisoformat(booking["flightEndsAt"])
-                                - datetime.fromisoformat(booking["flightStartsAt"])
+                        starts_at=datetime.fromisoformat(booking["startsAt"]),  # type: ignore
+                        ends_at=datetime.fromisoformat(booking["endsAt"]),  # type: ignore
+                        comment=booking["comment"] or "",  # type: ignore
+                        id=booking["id"],  # type: ignore
+                        status=booking["status"],  # type: ignore
+                        instructor=booking["instructor"]["callSign"],  # type: ignore
+                        student=booking["student"]["callSign"],  # type: ignore
+                        flight=Flight(  # type: ignore
+                            off_block=datetime.fromisoformat(booking["flightStartsAt"]),  # type: ignore
+                            on_block=datetime.fromisoformat(booking["flightEndsAt"]),  # type: ignore
+                            airborne_minutes=(  # type: ignore
+                                datetime.fromisoformat(booking["flightEndsAt"])  # type: ignore
+                                - datetime.fromisoformat(booking["flightStartsAt"])  # type: ignore
                             ).total_seconds()
                             / 60,
                         ),
-                        planned_lesson=booking["plannedLesson"],
+                        planned_lesson=booking["plannedLesson"],  # type: ignore
                         aircraft=next(
                             (
                                 aircraft
@@ -253,24 +271,24 @@ class User(object):
                                 if aircraft.call_sign == booking["aircraft"]["callSign"]
                             ),
                         ),
-                        typename=booking["__typename"],
+                        typename=booking["__typename"],  # type: ignore
                     )
                 )
             elif "Rental" in booking["__typename"]:
                 self.bookings.append(
                     Booking(
-                        starts_at=datetime.fromisoformat(booking["startsAt"]),
-                        ends_at=datetime.fromisoformat(booking["endsAt"]),
-                        comment=booking["comment"] or "",
-                        id=booking["id"],
-                        status=booking["status"],
-                        renter=booking["renter"]["callSign"],
+                        starts_at=datetime.fromisoformat(booking["startsAt"]),  # type: ignore
+                        ends_at=datetime.fromisoformat(booking["endsAt"]),  # type: ignore
+                        comment=booking["comment"] or "",  # type: ignore
+                        id=booking["id"],  # type: ignore
+                        status=booking["status"],  # type: ignore
+                        renter=booking["renter"]["callSign"],  # type: ignore
                         flight=Flight(
-                            off_block=datetime.fromisoformat(booking["flightStartsAt"]),
-                            on_block=datetime.fromisoformat(booking["flightEndsAt"]),
+                            off_block=datetime.fromisoformat(booking["flightStartsAt"]),  # type: ignore
+                            on_block=datetime.fromisoformat(booking["flightEndsAt"]),  # type: ignore
                             airborne_minutes=(
-                                datetime.fromisoformat(booking["flightEndsAt"])
-                                - datetime.fromisoformat(booking["flightStartsAt"])
+                                datetime.fromisoformat(booking["flightEndsAt"])  # type: ignore
+                                - datetime.fromisoformat(booking["flightStartsAt"])  # type: ignore
                             ).total_seconds()
                             / 60,
                         ),
@@ -281,24 +299,24 @@ class User(object):
                                 if aircraft.call_sign == booking["aircraft"]["callSign"]
                             ),
                         ),
-                        typename=booking["__typename"],
+                        typename=booking["__typename"],  # type: ignore
                     )
                 )
             elif "Operation" in booking["__typename"]:
                 self.bookings.append(
                     Booking(
-                        starts_at=datetime.fromisoformat(booking["startsAt"]),
-                        ends_at=datetime.fromisoformat(booking["endsAt"]),
-                        comment=booking["comment"] or "",
-                        id=booking["id"],
-                        status=booking["status"],
-                        pic=booking["pic"]["callSign"],
+                        starts_at=datetime.fromisoformat(booking["startsAt"]),  # type: ignore
+                        ends_at=datetime.fromisoformat(booking["endsAt"]),  # type: ignore
+                        comment=booking["comment"] or "",  # type: ignore
+                        id=booking["id"],  # type: ignore
+                        status=booking["status"],  # type: ignore
+                        pic=booking["pic"]["callSign"],  # type: ignore
                         flight=Flight(
-                            off_block=datetime.fromisoformat(booking["flightStartsAt"]),
-                            on_block=datetime.fromisoformat(booking["flightEndsAt"]),
+                            off_block=datetime.fromisoformat(booking["flightStartsAt"]),  # type: ignore
+                            on_block=datetime.fromisoformat(booking["flightEndsAt"]),  # type: ignore
                             airborne_minutes=(
-                                datetime.fromisoformat(booking["flightEndsAt"])
-                                - datetime.fromisoformat(booking["flightStartsAt"])
+                                datetime.fromisoformat(booking["flightEndsAt"])  # type: ignore
+                                - datetime.fromisoformat(booking["flightStartsAt"])  # type: ignore
                             ).total_seconds()
                             / 60,
                         ),
@@ -309,50 +327,39 @@ class User(object):
                                 if aircraft.call_sign == booking["aircraft"]["callSign"]
                             ),
                         ),
-                        typename=booking["__typename"],
+                        typename=booking["__typename"],  # type: ignore
                     )
                 )
 
-        # if self.call_sign == "RVALL":
-        #     # Print bookings in a table using tabulate
-        #     from tabulate import tabulate
+    def set_trainings(self) -> None:
+        """
+        Get the trainings that the user has done.
+        """
+        # Set self.trainings to an empty list if the user has a trainings key
+        self.trainings = [] if self.data.get("trainings") else None
 
-        #     for _ in self.bookings:
-        #         print(
-        #             tabulate(
-        #                 [
-        #                     [
-        #                         _.starts_at,
-        #                         _.ends_at,
-        #                         _.comment,
-        #                         _.id,
-        #                         _.status,
-        #                         _.instructor,
-        #                         _.student,
-        #                         _.flight.off_block,
-        #                         _.flight.on_block,
-        #                         _.flight.airborne_minutes,
-        #                         _.planned_lesson,
-        #                         _.aircraft,
-        #                         _.typename,
-        #                     ]
-        #                 ],
-        #                 headers=[
-        #                     "Starts at",
-        #                     "Ends at",
-        #                     "Comment",
-        #                     "ID",
-        #                     "Status",
-        #                     "Instructor",
-        #                     "Student",
-        #                     "Flight starts at",
-        #                     "Flight ends at",
-        #                     "Flight airborne minutes",
-        #                     "Planned lesson",
-        #                     "Aircraft",
-        #                     "Typename",
-        #                 ],
-        #                 tablefmt="fancy_grid",
-        #             )
-        #         )
-        #         print("\n\n")
+        if self.trainings is not None:
+            # Convert the trainings to Training objects
+            for training in self.data["trainings"]["nodes"]:
+                from classes.training import Training
+
+                self.trainings.append(
+                    Training(
+                        id=training["id"],
+                        name=training["name"],
+                        status=training["status"],
+                        program=training["userProgram"],
+                        lecture=training["lecture"],
+                        # Set booked to True if any of the bookings planned lesson lecture name
+                        # is the same as the training name
+                        booked=any(
+                            booking.planned_lesson["lecture"]["name"]
+                            == training["name"]
+                            for booking in self.bookings
+                            if booking.planned_lesson is not None
+                        ),
+                    )
+                )
+
+            # Sort the trainings phase from lowest to highest and then by name
+            self.trainings.sort(key=lambda x: (x.order, x.name))

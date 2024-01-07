@@ -12,6 +12,7 @@ from gql.transport.aiohttp import AIOHTTPTransport
 from gql.transport.exceptions import TransportError, TransportServerError
 
 import my_secrets as secs
+from classes.user import User
 
 transport = AIOHTTPTransport(
     url="https://api.flightlogger.net/graphql",
@@ -30,6 +31,7 @@ async def send_request(
     head: str = "",
     params: dict[str, Any] | None = None,
     page: int = 0,
+    get_next: bool = True,
 ) -> dict[str, Any]:
     """
     Send a request to the FlightLogger API.
@@ -47,14 +49,19 @@ async def send_request(
     except (TransportError, TransportServerError, ClientResponseError):
         print("Error sending the request. Retrying in 5 seconds...")
         sleep(5)
-        response_json = await send_request(
-            head=head, body=body, params=params, query_object=query_object
+        return await send_request(
+            body=body,
+            query_object=query_object,
+            head=head,
+            params=params,
+            page=page,
+            get_next=False,
         )
 
-    # Take the first parameter of the response as the query object.
-
     # If there are more pages, get them
-    has_next_page = bool(response_json[query_object]["pageInfo"]["hasNextPage"])
+    has_next_page = (
+        bool(response_json[query_object]["pageInfo"]["hasNextPage"]) and get_next
+    )
     if has_next_page:
         page += 1
         end_cursor = response_json[query_object]["pageInfo"]["endCursor"]
@@ -65,10 +72,7 @@ async def send_request(
         print(f"Getting page {page} with after={end_cursor}...")
         # sourcery skip: merge-nested-ifs
         if not head:
-            if "bookings" in body:
-                head = """
-query Bookings($after: String)
-"""
+            head = f"query {query_object.capitalize()}($after: String)"
         if "after" not in head:
             head = head.replace("(", "($after: String,")
         if "after" not in body:
@@ -308,3 +312,46 @@ async def get_bookings() -> dict[str, Any]:
     # print(json.dumps(response_json, indent=4))
 
     return response_json["bookings"]["nodes"]
+
+
+async def get_trainings(flyers: list[User]) -> dict[str, Any]:
+    """
+    Get the trainings using the flyers ids in an async way.
+    """
+    flyers_ids = [flyer.id for flyer in flyers]
+    query_object = "trainings"
+    query_body = """
+{
+	trainings(all: true, status: NOT_FLOWN, userIds: flyers_ids) {
+		nodes {
+			id
+			name
+			status
+			student {
+				callSign
+			}
+			userProgram{
+				name
+				status
+			}
+			lecture{
+				vfrDualMinutes
+				vfrSoloMinutes
+				vfrSimMinutes
+				vfrSpicMinutes
+				ifrDualMinutes
+				ifrSimMinutes
+				ifrSpicMinutes
+			}
+		}
+		pageInfo {
+			endCursor
+			hasNextPage
+		}
+	}
+}
+""".replace("flyers_ids", str(flyers_ids)).replace("'", '"')
+
+    response_json = await send_request(body=query_body, query_object=query_object)
+
+    return response_json["trainings"]["nodes"]

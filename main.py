@@ -6,6 +6,7 @@ The program will use the Google OR-Tools to solve the problem.
 """
 import calendar
 import datetime
+import math
 from time import sleep
 from typing import Union
 
@@ -18,6 +19,7 @@ from classes.user import User
 
 
 def print_user_groups(users: list[User]) -> None:
+    # sourcery skip: low-code-quality
     """
     Print the users in groups.
 
@@ -29,7 +31,10 @@ def print_user_groups(users: list[User]) -> None:
     """
     table_data: list[dict[str, Union[str, int]]] = []
     for user in users:
-        if user.is_available:
+        # Do not print the user is a stundent and does has any booking on the scheduling date
+        if user.is_available and not (
+            user.is_student and user.has_booking_on_scheduling_date
+        ):
             print_dict = {
                 "CallSign": user.call_sign,
             }
@@ -101,12 +106,27 @@ def print_user_groups(users: list[User]) -> None:
                     and "CONSTRAINED" not in class_.name
                 )
                 print_dict["Classes"] = "\n".join(classes_list)
-                print_dict["DaysSinceLastFlight"] = (
+                print_dict["LastFlight (D)"] = (
                     str(user.days_since_last_flight)
-                    if user.days_since_last_flight != -999
+                    if user.days_since_last_flight != -math.inf
                     else ""
                 )
-
+                # ? Training printings
+                if user.trainings:
+                    # Print the next Training that is not booked = True. Limit string length to 25 characters
+                    print_dict["Training"] = next(
+                        (
+                            training.name[:25]
+                            for training in user.trainings
+                            if not training.booked
+                        ),
+                        "",
+                    )
+                    # Print the next Training air time in HOURS and MINUTES
+                    print_dict["AirTime"] = (
+                        f"{(user.trainings[0].air_time_minutes // 60):.0f}h "
+                        + f"{(user.trainings[0].air_time_minutes % 60):.0f}m"
+                    )
             table_data.append(print_dict)  # type: ignore
     # Limit string length to 25 characters for the column "Programs"
     # First separate the string by \n, then limit the length of each string
@@ -160,6 +180,9 @@ async def scheduler() -> None:
 
     # Create the school object
     canavia = School(scheduling_date=scheduling_date)
+
+    # TODO(eros) Change the way the information about the Users is retrieved
+
     await canavia.initialize()
 
     # Remove users with CallSign:
