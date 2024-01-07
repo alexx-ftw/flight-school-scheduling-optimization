@@ -132,13 +132,18 @@ class User(object):
         # 1. Get the number of bookings in the scheduling date
         # 2. Multiply that number by the flight hours of the bookings
         if self.is_instructor:
-            self.tiredness = self.airborne_time_on_scheduling_date / 60 + sum(
-                1
-                for booking in self.bookings
-                if booking.starts_at.date() == fl.SCHEDULING_DATE
-                and not booking.is_solo
-                and not booking.is_cancelled
-                and (booking.planned_lesson is not None and not booking.is_solo)
+            self.tiredness = (
+                (
+                    self.airborne_time_on_scheduling_date / 60
+                    + sum(
+                        booking.starts_at.date() == fl.SCHEDULING_DATE
+                        and not booking.is_solo
+                        and not booking.is_cancelled
+                        for booking in self.bookings
+                    )
+                )
+                / 9
+                * 100
             )
 
         return warnings
@@ -307,3 +312,47 @@ class User(object):
                         typename=booking["__typename"],
                     )
                 )
+
+        # if self.call_sign == "RVALL":
+        #     # Print bookings in a table using tabulate
+        #     from tabulate import tabulate
+
+        #     for _ in self.bookings:
+        #         print(
+        #             tabulate(
+        #                 [
+        #                     [
+        #                         _.starts_at,
+        #                         _.ends_at,
+        #                         _.comment,
+        #                         _.id,
+        #                         _.status,
+        #                         _.instructor,
+        #                         _.student,
+        #                         _.flight.off_block,
+        #                         _.flight.on_block,
+        #                         _.flight.airborne_minutes,
+        #                         _.planned_lesson,
+        #                         _.aircraft,
+        #                         _.typename,
+        #                     ]
+        #                 ],
+        #                 headers=[
+        #                     "Starts at",
+        #                     "Ends at",
+        #                     "Comment",
+        #                     "ID",
+        #                     "Status",
+        #                     "Instructor",
+        #                     "Student",
+        #                     "Flight starts at",
+        #                     "Flight ends at",
+        #                     "Flight airborne minutes",
+        #                     "Planned lesson",
+        #                     "Aircraft",
+        #                     "Typename",
+        #                 ],
+        #                 tablefmt="fancy_grid",
+        #             )
+        #         )
+        #         print("\n\n")

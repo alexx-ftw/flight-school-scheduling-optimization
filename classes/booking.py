@@ -5,9 +5,23 @@ This file contains the class for booking
 import datetime
 from typing import Any
 
+from attr import dataclass
+
 from classes.aircraft import Aircraft
 from classes.flight import Flight
 from classes.user import User
+
+
+@dataclass
+class Statuses(object):
+    """Class for storing booking statuses"""
+
+    CANCELLED: str = "CANCELLED"
+    CONFIRMED: str = "CONFIRMED"
+    PENDING: str = "PENDING"
+
+
+STATUSES = Statuses()
 
 
 class Booking(object):
@@ -35,13 +49,13 @@ class Booking(object):
         self.ends_at = ends_at
         self.comment = comment
         self.planned_lesson = planned_lesson
-        self.is_solo = self.comment.lower() in {"solo"} or (
+        self.is_solo = "solo" in self.comment.lower() or (
             self.planned_lesson is not None
-            and str(self.planned_lesson["lecture"]["name"]).lower() in {"solo"}
+            and "solo" in str(self.planned_lesson["lecture"]["name"]).lower()
         )
         self.id = id
         self.status = status
-        self.is_cancelled = self.status in {"cancelled"}
+        self.is_cancelled = self.status == STATUSES.CANCELLED
         self.instructor = instructor
         self.renter = renter
         self.pic = pic

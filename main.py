@@ -41,26 +41,25 @@ def print_user_groups(users: list[User]) -> None:
                     + f"{(user.airborne_time_mtd_minutes % 60):.0f}m"
                 )
                 # Airborne time on the scheduling date. No decimals.
-                # Color the airborne time in yellow if between (4.5 and 5.5] hours in minutes
-                # Color the airborne time in red if more than 5.5 hours in minutes
                 # Print the airborne time in HOURS and MINUTES
-                if user.airborne_time_on_scheduling_date < 4 * 60:
-                    color = None
-                elif user.airborne_time_on_scheduling_date <= 5 * 60:
-                    color = "dark_grey"
-                elif user.airborne_time_on_scheduling_date <= 5.5 * 60:
-                    color = "yellow"
-                else:
-                    color = "red"
 
                 print_dict["AirTimeSCHDate"] = termcolor.colored(
                     f"{(user.airborne_time_on_scheduling_date // 60):.0f}h"
                     + f" {(user.airborne_time_on_scheduling_date % 60):.0f}m",
-                    color,
+                    "dark_grey",
                 )
-                # Print the "Tiredness" factor
+                # Print the "Tiredness" factor.
+                # Red if < 60, dark_grey if >= 60, red if >= 90
+                # If 0, print nothing
+                color = (
+                    "red"
+                    if user.tiredness >= 90 or user.tiredness < 60
+                    else "dark_grey"
+                )
                 print_dict["Tiredness"] = (
-                    f"{user.tiredness:.2f}" if user.tiredness else "N/A"
+                    termcolor.colored(f"{user.tiredness:.0f}", color)
+                    if user.tiredness != 0
+                    else ""
                 )
 
             # Each program name will be printed in a new line
@@ -154,8 +153,10 @@ async def scheduler() -> None:
     """Main function."""
     # Clear the screen
     print("\033c")
-
     global scheduling_date
+    print(
+        f"{SCHEDULING_DATE_LABEL} {scheduling_date} {calendar.day_name[scheduling_date.weekday()]}"
+    )
 
     # Create the school object
     canavia = School(scheduling_date=scheduling_date)
@@ -175,8 +176,19 @@ async def scheduler() -> None:
         )
     ]
 
-    # Sort instructors by airborne time
+    # Sort instructors by airborne time MTD
     canavia.instructors.sort(key=lambda x: x.airborne_time_mtd_minutes)
+    # If two instructors are within 6 hours of airborne time of each other,
+    # sort those by tiredness without changing the order of the rest of the instructors
+    for i in range(len(canavia.instructors) - 1):
+        if (
+            canavia.instructors[i + 1].airborne_time_mtd_minutes
+            - canavia.instructors[i].airborne_time_mtd_minutes
+            <= 6 * 60
+        ):
+            canavia.instructors[i : i + 2] = sorted(
+                canavia.instructors[i : i + 2], key=lambda x: x.tiredness
+            )
 
     # Sort students by days since last flight. Put students with "TIME CONSTRAINED" in
     # any of their classes at the beginning of the list
@@ -235,35 +247,34 @@ def is_active_window() -> bool:
 def increase_date() -> None:
     """Increase the scheduling date by 1 day."""
     # Check if the console is the active window
-    if not is_active_window():
-        return None
-
-    global scheduling_date
-    scheduling_date += datetime.timedelta(days=1)
-    print(
-        SCHEDULING_DATE_LABEL,
-        scheduling_date,
-        calendar.day_name[scheduling_date.weekday()],
-        end="\r",
-    )
+    if is_active_window():
+        global scheduling_date
+        scheduling_date += datetime.timedelta(days=1)
+        print(
+            SCHEDULING_DATE_LABEL,
+            scheduling_date,
+            calendar.day_name[scheduling_date.weekday()],
+            end="\r",
+        )
+    return None
 
 
 def decrease_date() -> None:
     """Decrease the scheduling date by 1 day."""
     # Check if the console is the active window
-    if not is_active_window():
-        return None
+    if is_active_window():
+        global scheduling_date
+        # Prevent the scheduling date from being before today
+        if scheduling_date > TODAY:
+            scheduling_date -= datetime.timedelta(days=1)
+        print(
+            SCHEDULING_DATE_LABEL,
+            scheduling_date,
+            calendar.day_name[scheduling_date.weekday()],
+            end="\r",
+        )
 
-    global scheduling_date
-    # Prevent the scheduling date from being before today
-    if scheduling_date > TODAY:
-        scheduling_date -= datetime.timedelta(days=1)
-    print(
-        SCHEDULING_DATE_LABEL,
-        scheduling_date,
-        calendar.day_name[scheduling_date.weekday()],
-        end="\r",
-    )
+    return None
 
 
 start = False
